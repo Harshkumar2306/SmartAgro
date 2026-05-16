@@ -9,3 +9,4 @@ rasterio
 pystac-client
 planetary-computer
 fpdf
+scikit-learn
