@@ -11,7 +11,8 @@ import tempfile
 import numpy as np
 import matplotlib
 matplotlib.use('Agg')
-import matplotlib.pyplot as plt
+from matplotlib.figure import Figure
+from matplotlib.backends.backend_agg import FigureCanvasAgg as FigureCanvas
 from matplotlib.colors import ListedColormap
 import rasterio
 from rasterio.io import MemoryFile
@@ -62,14 +63,63 @@ def delete_job(job_id):
 def fig_to_base64(fig):
     buf = io.BytesIO()
     fig.savefig(buf, format="png", bbox_inches='tight', transparent=True, dpi=80)
-    plt.close(fig)
     buf.seek(0)
     b64 = base64.b64encode(buf.getvalue()).decode("utf-8")
     buf.close()
     return b64
 
 def generate_maps(ndvi_matrix, class_matrix, rgb_matrix=None, ndwi_matrix=None, savi_matrix=None):
-    return {}
+    maps = {}
+    try:
+        fig = Figure(figsize=(5, 4))
+        FigureCanvas(fig)
+        ax = fig.add_subplot(111)
+        im = ax.imshow(ndvi_matrix, cmap='RdYlGn', vmin=-0.2, vmax=1.0)
+        fig.colorbar(im, ax=ax, label='NDVI Value')
+        ax.axis('off')
+        maps['ndvi_map'] = fig_to_base64(fig)
+        
+        fig2 = Figure(figsize=(5, 4))
+        FigureCanvas(fig2)
+        ax2 = fig2.add_subplot(111)
+        colors = ['#808080', '#FF0000', '#FFFF00', '#008000']
+        cmap_custom = ListedColormap(colors)
+        im2 = ax2.imshow(class_matrix, cmap=cmap_custom, vmin=-0.5, vmax=3.5)
+        cbar = fig2.colorbar(im2, ax=ax2, ticks=[0, 1, 2, 3])
+        cbar.ax.set_yticklabels(['Non-Vegetation', 'Stressed', 'Moderate', 'Healthy'])
+        ax2.axis('off')
+        maps['stress_map'] = fig_to_base64(fig2)
+        
+        if rgb_matrix is not None:
+            fig3 = Figure(figsize=(5, 4))
+            FigureCanvas(fig3)
+            ax3 = fig3.add_subplot(111)
+            ax3.imshow(rgb_matrix)
+            ax3.axis('off')
+            maps['rgb_map'] = fig_to_base64(fig3)
+            
+        if ndwi_matrix is not None:
+            fig4 = Figure(figsize=(5, 4))
+            FigureCanvas(fig4)
+            ax4 = fig4.add_subplot(111)
+            im4 = ax4.imshow(ndwi_matrix, cmap='BrBG', vmin=-1.0, vmax=1.0)
+            fig4.colorbar(im4, ax=ax4, label='NDWI Value')
+            ax4.axis('off')
+            maps['ndwi_map'] = fig_to_base64(fig4)
+            
+        if savi_matrix is not None:
+            fig5 = Figure(figsize=(5, 4))
+            FigureCanvas(fig5)
+            ax5 = fig5.add_subplot(111)
+            im5 = ax5.imshow(savi_matrix, cmap='YlGn', vmin=-0.2, vmax=1.0)
+            fig5.colorbar(im5, ax=ax5, label='SAVI Value')
+            ax5.axis('off')
+            maps['savi_map'] = fig_to_base64(fig5)
+    except Exception as e:
+        logger.error(f"Error generating maps: {e}")
+    finally:
+        gc.collect()
+    return maps
 
 def load_data_from_bytes(file_bytes):
     with MemoryFile(file_bytes) as memfile:
@@ -380,7 +430,6 @@ def process_area_job(job_id: str, bbox: list[float]):
         set_job(job_id, {"status": "error", "error": error_msg})
     finally:
         gc.collect()
-        plt.close('all')
 
 
 @app.post("/api/analyze-async")
