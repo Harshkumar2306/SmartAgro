@@ -18,4 +18,4 @@ jobs:
           HF_TOKEN: ${{ secrets.HF_TOKEN }}
         run: |
           # Pushing automatically to harsh0o23/smart-agro-api
-          git push --force https://harsh0o23:$HF_TOKEN@huggingface.co/spaces/harsh0o23/smart-agro-api main
+          git push --force https://harsh0o23:$HF_TOKEN@huggingface.co/spaces/harsh0o23/smart-agro-api HEAD:main
