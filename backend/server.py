@@ -188,6 +188,10 @@ os.environ["OPENBLAS_NUM_THREADS"] = "1"
 
 import matplotlib
 matplotlib.use('Agg')
+matplotlib.rcParams['text.color'] = 'white'
+matplotlib.rcParams['axes.labelcolor'] = 'white'
+matplotlib.rcParams['xtick.color'] = 'white'
+matplotlib.rcParams['ytick.color'] = 'white'
 from matplotlib.figure import Figure
 from matplotlib.backends.backend_agg import FigureCanvasAgg as FigureCanvas
 from matplotlib.colors import ListedColormap
@@ -502,9 +506,9 @@ def process_area_job(job_id: str, bbox: list[float]):
         )
         
         if mean_ndwi < -0.1:
-            suggestion += " Satellite moisture index indicates Drought Warning."
+            suggestion += "\n• Moisture Alert: Satellite moisture index indicates a Drought Warning. Immediate hydration strategies are recommended."
         elif mean_ndwi > 0.3:
-            suggestion += " Satellite moisture index indicates Waterlogging Warning."
+            suggestion += "\n• Moisture Alert: Satellite moisture index indicates a Waterlogging Warning. Drainage checks are recommended."
             
         result = {
             "stats": stats,

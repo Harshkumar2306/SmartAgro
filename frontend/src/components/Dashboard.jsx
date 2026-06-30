@@ -74,8 +74,8 @@ const Dashboard = ({ results, onReset }) => {
           <div className="recommendation-box">
             <Info className="recommendation-icon" size={24} />
             <div>
-              <h4 style={{ color: '#3b82f6', marginBottom: '0.5rem', fontSize: '1.1rem' }}>AI Action Plan</h4>
-              <p style={{ lineHeight: '1.6', color: '#e2e8f0', fontSize: '0.95rem' }}>{recommendation}</p>
+              <h4 style={{ color: '#fff', marginBottom: '0.5rem', fontWeight: '600' }}>AI Action Plan</h4>
+              <p style={{ lineHeight: '1.6', color: '#e2e8f0', fontSize: '0.95rem', whiteSpace: 'pre-wrap' }}>{recommendation}</p>
             </div>
           </div>
           
