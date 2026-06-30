@@ -9,8 +9,8 @@ import 'leaflet/dist/leaflet.css';
 import 'leaflet-geosearch/dist/geosearch.css';
 import { Loader2, Search } from 'lucide-react';
 
-// Connect directly to the powerful Hugging Face 16GB Engine
-const API_URL = import.meta.env.VITE_API_URL || 'https://harsh0o23-smart-agro-api.hf.space';
+// Force connection to Hugging Face (ignores Vercel's old environment variables)
+const API_URL = 'https://harsh0o23-smart-agro-api.hf.space';
 
 // Fix for missing default icon in Leaflet
 delete L.Icon.Default.prototype._getIconUrl;
