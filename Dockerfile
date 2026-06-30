@@ -8,17 +8,13 @@ RUN apt-get update && apt-get install -y \
     g++ \
     && rm -rf /var/lib/apt/lists/*
 
-# Set GDAL version for rasterio compilation
-ENV GDAL_CONFIG=/usr/bin/gdal-config
-
 WORKDIR /app
 
 # Copy the requirements file
 COPY backend/requirements.txt .
 
-# Install Python dependencies
-# Force rasterio to compile against system GDAL to prevent version mismatch segfaults
-RUN pip install --no-cache-dir --no-binary rasterio -r requirements.txt
+# Install Python dependencies (use binary wheels - they work for startup)
+RUN pip install --no-cache-dir -r requirements.txt
 
 # Copy the entire backend directory
 COPY backend/ ./backend/
@@ -28,5 +24,4 @@ ENV PORT=7860
 EXPOSE 7860
 
 # Start the FastAPI server using uvicorn
-# Single worker to stay within free-tier 2vCPU / 16GB RAM limits
 CMD ["uvicorn", "backend.server:app", "--host", "0.0.0.0", "--port", "7860", "--timeout-keep-alive", "120"]
