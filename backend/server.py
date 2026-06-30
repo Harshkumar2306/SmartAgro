@@ -143,7 +143,7 @@ def get_planetary_data(bbox):
         datetime=time_range,
         query={"eo:cloud_cover": {"lt": 20}},
         sortby=[{"field": "eo:cloud_cover", "direction": "asc"}],
-        max_items=2, # Reduced to 2 to prevent Render timeouts
+        max_items=1, # Limit to 1 to drastically reduce processing time on 0.1 CPU
     )
 
     all_items = list(search.items())
@@ -151,7 +151,9 @@ def get_planetary_data(bbox):
         raise ValueError("No cloud-free Sentinel-2 imagery found.")
 
     image_date = all_items[0].datetime.strftime("%Y-%m-%d") if all_items[0].datetime else "Unknown"
-    target_size = 256
+    
+    # Reduced resolution (128x128 instead of 256x256) to make it 4x faster and use 4x less memory
+    target_size = 128
     red_canvas = np.zeros((target_size, target_size), dtype=np.float32)
     nir_canvas = np.zeros((target_size, target_size), dtype=np.float32)
     green_canvas = np.zeros((target_size, target_size), dtype=np.float32)
@@ -167,7 +169,8 @@ def get_planetary_data(bbox):
                 src_bounds = transform_bounds("EPSG:4326", src.crs, *bbox_4326)
                 window = from_bounds(*src_bounds, transform=src.transform)
                 from rasterio.enums import Resampling
-                data = src.read(1, window=window, boundless=True, fill_value=0, out_shape=(target_size, target_size), resampling=Resampling.bilinear).astype(np.float32)
+                # Nearest neighbor resampling is vastly faster on 0.1 CPU instances
+                data = src.read(1, window=window, boundless=True, fill_value=0, out_shape=(target_size, target_size), resampling=Resampling.nearest).astype(np.float32)
                 if data.shape[0] == 0 or data.shape[1] == 0: return 0.0
                 fill_mask = (canvas == 0) & (data > 0)
                 canvas[fill_mask] = data[fill_mask]
@@ -175,15 +178,11 @@ def get_planetary_data(bbox):
         except Exception: return 0.0
 
     for item in all_items:
-        # Use 2 workers to balance speed and memory (avoids OOM while being faster than sequential)
-        with concurrent.futures.ThreadPoolExecutor(max_workers=2) as executor:
-            futures = [
-                executor.submit(process_band, item, "B04", red_canvas),
-                executor.submit(process_band, item, "B08", nir_canvas),
-                executor.submit(process_band, item, "B03", green_canvas),
-                executor.submit(process_band, item, "B02", blue_canvas)
-            ]
-            concurrent.futures.wait(futures)
+        # Process sequentially. Threading on 0.1 CPU adds overhead without speed gains.
+        process_band(item, "B04", red_canvas)
+        process_band(item, "B08", nir_canvas)
+        process_band(item, "B03", green_canvas)
+        process_band(item, "B02", blue_canvas)
             
         if np.sum(red_canvas > 0) / red_canvas.size > 0.98: break
 
