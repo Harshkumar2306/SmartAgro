@@ -144,7 +144,7 @@ def get_planetary_data(bbox):
         datetime=time_range,
         query={"eo:cloud_cover": {"lt": 20}},
         sortby=[{"field": "eo:cloud_cover", "direction": "asc"}],
-        max_items=5, # No compromise: Scanning top 5 images to guarantee flawless cloud-free composites
+        max_items=3, # Scan top 3 images (optimal balance of speed and cloud-free compositing)
     )
 
     all_items = list(search.items())
@@ -167,13 +167,10 @@ def get_planetary_data(bbox):
         if band_name not in item.assets: return 0.0
         href = item.assets[band_name].href
         try:
-            # Add explicit memory limits even on 16GB RAM to prevent endless caching
+            # Strip out VSI_CACHE completely to fix massive GDAL memory leak!
             env = rasterio.Env(
                 GDAL_DISABLE_READDIR_ON_OPEN="EMPTY_DIR", 
                 CPL_VSIL_CURL_ALLOWED_EXTENSIONS="tif,tiff", 
-                VSI_CACHE=True, 
-                VSI_CACHE_SIZE=500000000, # 500 MB max for curl cache
-                GDAL_CACHEMAX=1024, # 1 GB max block cache
                 GDAL_HTTP_MULTIMAC="YES", 
                 GDAL_HTTP_MERGE_CONSECUTIVE_READS="YES"
             )
