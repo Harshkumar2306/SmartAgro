@@ -17,5 +17,5 @@ jobs:
         env:
           HF_TOKEN: ${{ secrets.HF_TOKEN }}
         run: |
-          # Replace 'YOUR_HF_USERNAME' and 'YOUR_SPACE_NAME' below!
-          git push --force https://harshkumar2306:$HF_TOKEN@huggingface.co/spaces/YOUR_HF_USERNAME/YOUR_SPACE_NAME main
+          # Pushing automatically to harsh0o23/smart-agro-api
+          git push --force https://harsh0o23:$HF_TOKEN@huggingface.co/spaces/harsh0o23/smart-agro-api main
