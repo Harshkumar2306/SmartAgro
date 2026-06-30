@@ -308,11 +308,27 @@ h1 {
 
 /* Geosearch Fixes for dark mode */
 .leaflet-control-geosearch form {
-  background: rgba(255,255,255,0.9) !important;
+  background: rgba(255,255,255,0.95) !important;
   border-radius: 8px !important;
   overflow: hidden;
+  box-shadow: 0 4px 12px rgba(0,0,0,0.2) !important;
 }
 .leaflet-control-geosearch form input {
   color: #1e293b !important;
   padding-left: 10px !important;
+}
+.leaflet-control-geosearch form input::placeholder {
+  color: #64748b !important;
+}
+.leaflet-control-geosearch .results {
+  background: #ffffff !important;
+  color: #1e293b !important;
+}
+.leaflet-control-geosearch .results > * {
+  color: #1e293b !important;
+  border-bottom: 1px solid #f1f5f9 !important;
+}
+.leaflet-control-geosearch .results > *:hover {
+  background: #f1f5f9 !important;
+  color: #0f172a !important;
 }
