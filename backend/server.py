@@ -14,8 +14,6 @@ matplotlib.use('Agg')
 from matplotlib.figure import Figure
 from matplotlib.backends.backend_agg import FigureCanvasAgg as FigureCanvas
 from matplotlib.colors import ListedColormap
-import rasterio
-from rasterio.io import MemoryFile
 import requests
 from fastapi import FastAPI, UploadFile, File, Form, HTTPException, BackgroundTasks
 from fastapi.middleware.cors import CORSMiddleware
@@ -122,6 +120,8 @@ def generate_maps(ndvi_matrix, class_matrix, rgb_matrix=None, ndwi_matrix=None, 
     return maps
 
 def load_data_from_bytes(file_bytes):
+    import rasterio
+    from rasterio.io import MemoryFile
     with MemoryFile(file_bytes) as memfile:
         with memfile.open() as src:
             data = src.read(1)
