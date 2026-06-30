@@ -114,58 +114,84 @@ const MapSelector = ({ setResults, setLoading, loading }) => {
     setLoadingMessage("Initiating satellite link...");
     try {
       // 1. Start the async job
-      const response = await axios.post(`${API_URL}/api/analyze-async`, { bbox });
+      const response = await axios.post(`${API_URL}/api/analyze-async`, { bbox }, { timeout: 30000 });
       const jobId = response.data.job_id;
       
-      // 2. Poll the status every 3 seconds
+      // 2. Poll the status with generous retries
       let retryCount = 0;
-      const MAX_RETRIES = 5;
+      const MAX_RETRIES = 20;  // Much more patient - satellite downloads can take time
+      let notFoundCount = 0;
 
       const checkStatus = async () => {
         try {
-           const statusRes = await axios.get(`${API_URL}/api/status/${jobId}`);
+           const statusRes = await axios.get(`${API_URL}/api/status/${jobId}`, { timeout: 15000 });
            const status = statusRes.data.status;
+           
+           // Reset retry count on any successful response
+           retryCount = 0;
+           notFoundCount = 0;
            
            if (status === 'completed') {
                setResults(statusRes.data.data);
                setLoading(false);
            } else if (status === 'error') {
-               alert('Error analyzing area: ' + statusRes.data.detail);
+               alert('Analysis error: ' + statusRes.data.detail);
                setLoading(false);
            } else {
-               setLoadingMessage("Fetching and processing space data... (" + status + ")");
+               const progressMsgs = [
+                 "Connecting to Planetary Computer satellite network...",
+                 "Downloading multi-spectral Sentinel-2 imagery...",
+                 "Processing NDVI, NDWI, and SAVI vegetation indices...",
+                 "Running ML clustering for crop health zones...",
+                 "Generating map visualizations..."
+               ];
+               const msgIdx = Math.min(Math.floor(retryCount / 2), progressMsgs.length - 1);
+               setLoadingMessage(progressMsgs[msgIdx]);
+               retryCount++;
                setTimeout(checkStatus, 3000);
            }
         } catch (err) {
-           console.error(err);
+           console.error("Poll error:", err);
            
-           // If it's a 404, the server restarted and lost the memory job
+           // If it's a 404, the job might not be registered yet OR the server restarted
            if (err.response && err.response.status === 404) {
-              alert("The satellite imagery was too large and the server had to reset. Please try drawing a smaller bounding box.");
+              notFoundCount++;
+              // Give it 3 chances - the job might just not be registered yet
+              if (notFoundCount < 3) {
+                setLoadingMessage("Waiting for satellite processing to begin...");
+                setTimeout(checkStatus, 4000);
+                return;
+              }
+              alert("The server restarted during processing. Please try again - the server is now ready.");
               setLoading(false);
               return;
            }
            
-           // If it's a Network Error (502 / Server restarting / Dropped connection)
+           // For network errors (502, timeout, dropped connection) - retry generously
            if (retryCount < MAX_RETRIES) {
               retryCount++;
-              setLoadingMessage(`Connection unstable, retrying... (${retryCount}/${MAX_RETRIES})`);
-              setTimeout(checkStatus, 3000);
+              setLoadingMessage(`Satellite link unstable, reconnecting... (attempt ${retryCount}/${MAX_RETRIES})`);
+              setTimeout(checkStatus, 4000);
            } else {
-              alert("Status check failed after multiple retries. The server might be overloaded.");
+              alert("Connection to satellite server timed out. Please try again.");
               setLoading(false);
            }
         }
       };
       
-      setTimeout(checkStatus, 2000); // Wait 2s before first poll
+      setTimeout(checkStatus, 3000); // Wait 3s before first poll
       
     } catch (error) {
       console.error(error);
-      alert('Error initiating analysis: ' + error.message);
+      if (error.code === 'ERR_NETWORK' || error.message === 'Network Error') {
+        alert('Cannot reach the satellite server. It may be starting up - please wait 30 seconds and try again.');
+      } else {
+        alert('Error initiating analysis: ' + error.message);
+      }
       setLoading(false);
     }
   };
+
 
   return (
     <div className="map-selector-container">

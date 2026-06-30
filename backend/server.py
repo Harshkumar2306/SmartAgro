@@ -2,7 +2,11 @@ import os
 import io
 import base64
 import datetime
+import traceback
+import logging
 import numpy as np
+import matplotlib
+matplotlib.use('Agg')  # CRITICAL: Use non-interactive backend BEFORE importing pyplot
 import matplotlib.pyplot as plt
 from matplotlib.colors import ListedColormap
 import rasterio
@@ -14,74 +18,106 @@ from fastapi import FastAPI, UploadFile, File, Form, HTTPException, BackgroundTa
 from fastapi.middleware.cors import CORSMiddleware
 import uuid
 from pydantic import BaseModel
-import concurrent.futures
 from rasterio.warp import transform_bounds
 from rasterio.windows import from_bounds
+from rasterio.enums import Resampling
+import math
+import gc
+import threading
 
 from backend.ndvi import calculate_ndvi
 from backend.stress_detection import analyze_crop_health
 from backend.yield_prediction import estimate_yield
 from backend.recommendations import get_agricultural_recommendation, INDIAN_STATES_AGRI_DATA
-import math
+
+# Configure logging
+logging.basicConfig(level=logging.INFO)
+logger = logging.getLogger("smartagro")
 
 app = FastAPI(title="Smart Agri API")
 
 # Configure CORS for frontend
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["*"], # In production, restrict this
+    allow_origins=["*"],
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
 )
 
+# Thread-safe job store
+jobs = {}
+jobs_lock = threading.Lock()
+
+def set_job(job_id, data):
+    with jobs_lock:
+        jobs[job_id] = data
+
+def get_job(job_id):
+    with jobs_lock:
+        return jobs.get(job_id, None)
+
+def delete_job(job_id):
+    with jobs_lock:
+        jobs.pop(job_id, None)
+
+
 def fig_to_base64(fig):
     """Helper to convert matplotlib figure to base64 string"""
     buf = io.BytesIO()
-    fig.savefig(buf, format="png", bbox_inches='tight', transparent=True)
+    fig.savefig(buf, format="png", bbox_inches='tight', transparent=True, dpi=80)
     plt.close(fig)
-    return base64.b64encode(buf.getvalue()).decode("utf-8")
+    buf.seek(0)
+    b64 = base64.b64encode(buf.getvalue()).decode("utf-8")
+    buf.close()
+    return b64
 
 def generate_maps(ndvi_matrix, class_matrix, rgb_matrix=None, ndwi_matrix=None, savi_matrix=None):
     """Generates base64 strings for the different map visualisations."""
     maps = {}
     
-    # 1. NDVI Map
-    fig, ax = plt.subplots(figsize=(6, 5))
-    im = ax.imshow(ndvi_matrix, cmap='RdYlGn', vmin=-0.2, vmax=1.0)
-    fig.colorbar(im, ax=ax, label='NDVI Value')
-    ax.axis('off')
-    maps['ndvi_map'] = fig_to_base64(fig)
-    
-    # 2. Stress Map
-    fig2, ax2 = plt.subplots(figsize=(6, 5))
-    colors = ['#808080', '#FF0000', '#FFFF00', '#008000']
-    cmap_custom = ListedColormap(colors)
-    im2 = ax2.imshow(class_matrix, cmap=cmap_custom, vmin=-0.5, vmax=3.5)
-    cbar = fig2.colorbar(im2, ax=ax2, ticks=[0, 1, 2, 3])
-    cbar.ax.set_yticklabels(['Non-Vegetation', 'Stressed', 'Moderate', 'Healthy'])
-    ax2.axis('off')
-    maps['stress_map'] = fig_to_base64(fig2)
-    
-    if rgb_matrix is not None:
-        fig3, ax3 = plt.subplots(figsize=(6, 5))
-        ax3.imshow(rgb_matrix)
-        ax3.axis('off')
-        maps['rgb_map'] = fig_to_base64(fig3)
+    try:
+        # 1. NDVI Map
+        fig, ax = plt.subplots(figsize=(5, 4))
+        im = ax.imshow(ndvi_matrix, cmap='RdYlGn', vmin=-0.2, vmax=1.0)
+        fig.colorbar(im, ax=ax, label='NDVI Value')
+        ax.axis('off')
+        maps['ndvi_map'] = fig_to_base64(fig)
         
-    if ndwi_matrix is not None:
-        fig4, ax4 = plt.subplots(figsize=(6, 5))
-        im4 = ax4.imshow(ndwi_matrix, cmap='BrBG', vmin=-1.0, vmax=1.0)
-        fig4.colorbar(im4, ax=ax4, label='NDWI Value')
-        ax4.axis('off')
-        maps['ndwi_map'] = fig_to_base64(fig4)
+        # 2. Stress Map
+        fig2, ax2 = plt.subplots(figsize=(5, 4))
+        colors = ['#808080', '#FF0000', '#FFFF00', '#008000']
+        cmap_custom = ListedColormap(colors)
+        im2 = ax2.imshow(class_matrix, cmap=cmap_custom, vmin=-0.5, vmax=3.5)
+        cbar = fig2.colorbar(im2, ax=ax2, ticks=[0, 1, 2, 3])
+        cbar.ax.set_yticklabels(['Non-Vegetation', 'Stressed', 'Moderate', 'Healthy'])
+        ax2.axis('off')
+        maps['stress_map'] = fig_to_base64(fig2)
         
-    if savi_matrix is not None:
-        fig5, ax5 = plt.subplots(figsize=(6, 5))
-        im5 = ax5.imshow(savi_matrix, cmap='YlGn', vmin=-0.2, vmax=1.0)
-        fig5.colorbar(im5, ax=ax5, label='SAVI Value')
-        ax5.axis('off')
-        maps['savi_map'] = fig_to_base64(fig5)
+        if rgb_matrix is not None:
+            fig3, ax3 = plt.subplots(figsize=(5, 4))
+            ax3.imshow(rgb_matrix)
+            ax3.axis('off')
+            maps['rgb_map'] = fig_to_base64(fig3)
+            
+        if ndwi_matrix is not None:
+            fig4, ax4 = plt.subplots(figsize=(5, 4))
+            im4 = ax4.imshow(ndwi_matrix, cmap='BrBG', vmin=-1.0, vmax=1.0)
+            fig4.colorbar(im4, ax=ax4, label='NDWI Value')
+            ax4.axis('off')
+            maps['ndwi_map'] = fig_to_base64(fig4)
+            
+        if savi_matrix is not None:
+            fig5, ax5 = plt.subplots(figsize=(5, 4))
+            im5 = ax5.imshow(savi_matrix, cmap='YlGn', vmin=-0.2, vmax=1.0)
+            fig5.colorbar(im5, ax=ax5, label='SAVI Value')
+            ax5.axis('off')
+            maps['savi_map'] = fig_to_base64(fig5)
+    except Exception as e:
+        logger.error(f"Error generating maps: {e}")
+    finally:
+        plt.close('all')  # Always close all figures to prevent memory leaks
+        gc.collect()
         
     return maps
 
@@ -90,6 +126,11 @@ def load_data_from_bytes(file_bytes):
         with memfile.open() as src:
             data = src.read(1)
             return data.astype(np.float32)
+
+@app.get("/")
+def health_check():
+    """Health check endpoint so HF doesn't show 404."""
+    return {"status": "running", "service": "SmartAgro API", "version": "2.0"}
 
 @app.post("/api/analyze-local")
 async def analyze_local(b04: UploadFile = File(...), b08: UploadFile = File(...)):
@@ -127,9 +168,12 @@ async def analyze_local(b04: UploadFile = File(...), b08: UploadFile = File(...)
 class AreaRequest(BaseModel):
     bbox: list[float] # [min_lon, min_lat, max_lon, max_lat]
 
-# Re-use Planetary Computer logic
+
 def get_planetary_data(bbox):
+    """Fetch satellite data from Planetary Computer. Bulletproof version."""
     min_lon, min_lat, max_lon, max_lat = bbox
+    
+    logger.info(f"Connecting to Planetary Computer for bbox: {bbox}")
     catalog = pystac_client.Client.open(
         "https://planetarycomputer.microsoft.com/api/stac/v1",
         modifier=planetary_computer.sign_inplace,
@@ -144,76 +188,83 @@ def get_planetary_data(bbox):
         datetime=time_range,
         query={"eo:cloud_cover": {"lt": 20}},
         sortby=[{"field": "eo:cloud_cover", "direction": "asc"}],
-        max_items=3, # Scan top 3 images (optimal balance of speed and cloud-free compositing)
+        max_items=1,  # Use SINGLE best image for speed and stability
     )
 
     all_items = list(search.items())
     if not all_items:
-        raise ValueError("No cloud-free Sentinel-2 imagery found.")
+        raise ValueError("No cloud-free Sentinel-2 imagery found for this area in the last 120 days.")
 
-    image_date = all_items[0].datetime.strftime("%Y-%m-%d") if all_items[0].datetime else "Unknown"
+    item = all_items[0]
+    image_date = item.datetime.strftime("%Y-%m-%d") if item.datetime else "Unknown"
+    logger.info(f"Found image from {image_date} with cloud cover {item.properties.get('eo:cloud_cover', 'N/A')}%")
     
-    # Ultimate Quality Resolution (512x512) for Hugging Face 16GB RAM
-    target_size = 512
-    red_canvas = np.zeros((target_size, target_size), dtype=np.float32)
-    nir_canvas = np.zeros((target_size, target_size), dtype=np.float32)
-    green_canvas = np.zeros((target_size, target_size), dtype=np.float32)
-    blue_canvas = np.zeros((target_size, target_size), dtype=np.float32)
+    # Use 256x256 resolution - optimal balance of quality and speed
+    target_size = 256
     bbox_4326 = [min_lon, min_lat, max_lon, max_lat]
     
-    import gc
-
-    def process_band(item, band_name, canvas):
-        if band_name not in item.assets: return 0.0
+    def read_band(band_name):
+        """Read a single band from the satellite image. Returns numpy array."""
+        if band_name not in item.assets:
+            logger.warning(f"Band {band_name} not found in item assets")
+            return np.zeros((target_size, target_size), dtype=np.float32)
+        
         href = item.assets[band_name].href
+        logger.info(f"Reading band {band_name}...")
+        
         try:
-            # Strip out VSI_CACHE completely to fix massive GDAL memory leak!
-            env = rasterio.Env(
-                GDAL_DISABLE_READDIR_ON_OPEN="EMPTY_DIR", 
-                CPL_VSIL_CURL_ALLOWED_EXTENSIONS="tif,tiff", 
-                GDAL_HTTP_MULTIMAC="YES", 
-                GDAL_HTTP_MERGE_CONSECUTIVE_READS="YES"
-            )
-            with env, rasterio.open(href) as src:
-                src_bounds = transform_bounds("EPSG:4326", src.crs, *bbox_4326)
-                window = from_bounds(*src_bounds, transform=src.transform)
-                from rasterio.enums import Resampling
-                # Professional interpolation (bilinear) instead of nearest
-                data = src.read(1, window=window, boundless=True, fill_value=0, out_shape=(target_size, target_size), resampling=Resampling.bilinear).astype(np.float32)
-                if data.shape[0] == 0 or data.shape[1] == 0: return 0.0
-                fill_mask = (canvas == 0) & (data > 0)
-                canvas[fill_mask] = data[fill_mask]
-                return np.sum(canvas > 0) / canvas.size
-        except Exception: 
-            return 0.0
+            with rasterio.Env(
+                GDAL_DISABLE_READDIR_ON_OPEN="EMPTY_DIR",
+                CPL_VSIL_CURL_ALLOWED_EXTENSIONS="tif,tiff",
+            ):
+                with rasterio.open(href) as src:
+                    src_bounds = transform_bounds("EPSG:4326", src.crs, *bbox_4326)
+                    window = from_bounds(*src_bounds, transform=src.transform)
+                    data = src.read(
+                        1, 
+                        window=window, 
+                        boundless=True, 
+                        fill_value=0, 
+                        out_shape=(target_size, target_size),
+                        resampling=Resampling.nearest
+                    ).astype(np.float32)
+                    logger.info(f"Band {band_name} read successfully: shape={data.shape}, min={data.min():.1f}, max={data.max():.1f}")
+                    return data
+        except Exception as e:
+            logger.error(f"Error reading band {band_name}: {e}")
+            return np.zeros((target_size, target_size), dtype=np.float32)
         finally:
             gc.collect()
 
-    for item in all_items:
-        # Process sequentially. Threading on 0.1 CPU adds overhead without speed gains.
-        process_band(item, "B04", red_canvas)
-        process_band(item, "B08", nir_canvas)
-        process_band(item, "B03", green_canvas)
-        process_band(item, "B02", blue_canvas)
-            
-        if np.sum(red_canvas > 0) / red_canvas.size > 0.98: break
+    # Read all 4 bands sequentially
+    red = read_band("B04")
+    nir = read_band("B08")
+    green = read_band("B03")
+    blue = read_band("B02")
 
-    valid_mask = (red_canvas > 0) | (nir_canvas > 0) | (green_canvas > 0) | (blue_canvas > 0)
-    rgb_arr = np.clip(np.dstack((red_canvas, green_canvas, blue_canvas)) / 3000.0, 0, 1)
+    # Compute indices
+    valid_mask = (red > 0) | (nir > 0) | (green > 0) | (blue > 0)
+    rgb_arr = np.clip(np.dstack((red, green, blue)) / 3000.0, 0, 1)
 
     np.seterr(divide='ignore', invalid='ignore')
-    ndvi = np.where(valid_mask, (nir_canvas - red_canvas) / (nir_canvas + red_canvas + 1e-5), 0.0)
+    ndvi = np.where(valid_mask, (nir - red) / (nir + red + 1e-5), 0.0)
     ndvi = np.clip(np.nan_to_num(ndvi), -1.0, 1.0)
-    ndwi = np.where(valid_mask, (green_canvas - nir_canvas) / (green_canvas + nir_canvas + 1e-5), 0.0)
+    
+    ndwi = np.where(valid_mask, (green - nir) / (green + nir + 1e-5), 0.0)
     ndwi = np.clip(np.nan_to_num(ndwi), -1.0, 1.0)
+    
     L = 0.5
-    savi = np.where(valid_mask, ((nir_canvas - red_canvas) / (nir_canvas + red_canvas + L)) * (1 + L), 0.0)
+    savi = np.where(valid_mask, ((nir - red) / (nir + red + L)) * (1 + L), 0.0)
     savi = np.clip(np.nan_to_num(savi), -1.0, 1.0)
+
+    logger.info(f"All indices computed. NDVI range: [{ndvi.min():.3f}, {ndvi.max():.3f}]")
+    
+    # Free raw bands
+    del red, nir, green, blue, valid_mask
+    gc.collect()
 
     return ndvi, ndwi, savi, rgb_arr, image_date
 
-# Job store for async processing
-jobs = {}
 
 def get_season():
     month = datetime.datetime.now().month
@@ -226,16 +277,14 @@ def get_season():
 
 def get_area_hectares(bbox):
     min_lon, min_lat, max_lon, max_lat = bbox
-    # Approximate Haversine calculation for bounding box area
-    R = 6371.0 # Earth radius in km
+    R = 6371.0
     lat_dist = math.radians(max_lat - min_lat) * R
     lon_dist = math.radians(max_lon - min_lon) * R * math.cos(math.radians((min_lat + max_lat) / 2))
     area_km2 = lat_dist * lon_dist
-    return area_km2 * 100 # 1 km2 = 100 hectares
+    return area_km2 * 100
 
 def get_location_context(lat, lon):
     try:
-        # Nominatim Reverse Geocoding with explicit User-Agent
         url = f"https://nominatim.openstreetmap.org/reverse?lat={lat}&lon={lon}&format=json"
         headers = {'User-Agent': 'SmartAgroApp/1.0 (contact@example.com)'}
         res = requests.get(url, headers=headers, timeout=5)
@@ -244,8 +293,8 @@ def get_location_context(lat, lon):
             state = data.get("address", {}).get("state", "Unknown")
             region_data = INDIAN_STATES_AGRI_DATA.get(state, None)
             return {"state": state, "agri_data": region_data, "display_name": data.get("display_name", "")}
-    except:
-        pass
+    except Exception as e:
+        logger.warning(f"Location context failed: {e}")
     return {"state": "Unknown", "agri_data": None, "display_name": ""}
 
 def get_weather_context(lat, lon):
@@ -254,25 +303,24 @@ def get_weather_context(lat, lon):
         res = requests.get(url, timeout=5)
         if res.status_code == 200:
             return res.json().get('current', {})
-    except:
-        pass
+    except Exception as e:
+        logger.warning(f"Weather context failed: {e}")
     return None
 
 def process_area_job(job_id: str, bbox: list[float]):
-    """Background worker that does the heavy lifting."""
+    """Background worker that does the heavy lifting. Triple-wrapped in error handling."""
     try:
-        jobs[job_id]["status"] = "processing"
+        logger.info(f"[{job_id}] Starting job for bbox: {bbox}")
+        set_job(job_id, {"status": "processing"})
         
-        # 1. Environmental Context Extraction
+        # 1. Environmental Context
         center_lon = (bbox[0] + bbox[2]) / 2
         center_lat = (bbox[1] + bbox[3]) / 2
         area_ha = get_area_hectares(bbox)
-        
-        # Security Feature: Prevent OOM crashes from massively oversized bounds
-        if area_ha > 100000:
-            raise ValueError(f"Selected area ({area_ha:.0f} hectares) is too large for the satellite engine. For precision agriculture analysis, please select a farm area under 100,000 hectares.")
-            
         season = get_season()
+        
+        logger.info(f"[{job_id}] Area: {area_ha:.0f} hectares, Season: {season}")
+        
         location_ctx = get_location_context(center_lat, center_lon)
         weather_ctx = get_weather_context(center_lat, center_lon)
         
@@ -284,9 +332,12 @@ def process_area_job(job_id: str, bbox: list[float]):
         }
         
         # 2. Satellite Data Fetching
+        logger.info(f"[{job_id}] Fetching satellite data...")
         ndvi, ndwi, savi, rgb, img_date = get_planetary_data(bbox)
+        
+        logger.info(f"[{job_id}] Running ML health analysis...")
         stats = analyze_crop_health(ndvi)
-        mean_ndwi = np.nanmean(ndwi)
+        mean_ndwi = float(np.nanmean(ndwi))
         
         y_text, y_emoji, yield_color = estimate_yield(stats['healthy_pct'], mean_ndwi, temp=None, rain=None)
         
@@ -303,47 +354,66 @@ def process_area_job(job_id: str, bbox: list[float]):
         elif mean_ndwi > 0.3:
             suggestion += " Satellite moisture index indicates Waterlogging Warning."
             
+        logger.info(f"[{job_id}] Generating map visualizations...")
         maps = generate_maps(ndvi, stats['class_matrix'], rgb, ndwi, savi)
-        stats.pop('class_matrix')
         
-        jobs[job_id]["data"] = {
+        # Free large arrays before building response
+        del ndvi, ndwi, savi, rgb
+        stats.pop('class_matrix')
+        gc.collect()
+        
+        result = {
             "stats": stats,
             "yield": {"text": y_text, "emoji": y_emoji, "color": yield_color},
             "recommendation": suggestion,
             "maps": maps,
             "image_date": img_date,
-            "mean_ndwi": float(mean_ndwi),
+            "mean_ndwi": mean_ndwi,
             "context": context_data
         }
-        jobs[job_id]["status"] = "completed"
+        
+        set_job(job_id, {"status": "completed", "data": result})
+        logger.info(f"[{job_id}] Job completed successfully!")
+        
     except Exception as e:
-        jobs[job_id]["status"] = "error"
-        jobs[job_id]["error"] = str(e)
+        error_msg = str(e)
+        logger.error(f"[{job_id}] Job FAILED: {error_msg}")
+        logger.error(traceback.format_exc())
+        set_job(job_id, {"status": "error", "error": error_msg})
+    finally:
+        gc.collect()
+        plt.close('all')
 
 @app.post("/api/analyze-async")
 def analyze_area_async(req: AreaRequest, background_tasks: BackgroundTasks):
     job_id = str(uuid.uuid4())
-    jobs[job_id] = {"status": "queued"}
+    set_job(job_id, {"status": "queued"})
     background_tasks.add_task(process_area_job, job_id, req.bbox)
     return {"job_id": job_id}
 
 @app.get("/api/status/{job_id}")
 def get_job_status(job_id: str):
-    if job_id not in jobs:
+    job = get_job(job_id)
+    if job is None:
         raise HTTPException(status_code=404, detail="Job not found")
     
-    job = jobs[job_id]
-    if job["status"] == "completed":
-        # Optionally delete job after fetching to free memory
-        data = job["data"]
-        del jobs[job_id]
-        return {"status": "completed", "data": data}
-    elif job["status"] == "error":
-        err = job["error"]
-        del jobs[job_id]
-        return {"status": "error", "detail": err}
-    
-    return {"status": job["status"]}
+    try:
+        status = job.get("status", "unknown")
+        
+        if status == "completed":
+            data = job.get("data", {})
+            delete_job(job_id)
+            return {"status": "completed", "data": data}
+        elif status == "error":
+            err = job.get("error", "Unknown error")
+            delete_job(job_id)
+            return {"status": "error", "detail": err}
+        
+        return {"status": status}
+    except Exception as e:
+        logger.error(f"Error reading job {job_id}: {e}")
+        delete_job(job_id)
+        return {"status": "error", "detail": f"Internal error reading job: {str(e)}"}
 
 @app.get("/api/weather")
 def get_weather(lat: float, lng: float):
