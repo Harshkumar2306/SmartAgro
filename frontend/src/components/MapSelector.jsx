@@ -106,24 +106,45 @@ const AdvancedMapControls = ({ setBbox }) => {
 
 const MapSelector = ({ setResults, setLoading, loading }) => {
   const [bbox, setBbox] = useState(null);
+  const [loadingMessage, setLoadingMessage] = useState("Connecting to Planetary Computer...");
 
   const handleAnalyze = async () => {
     if (!bbox) return;
     setLoading(true);
+    setLoadingMessage("Initiating satellite link...");
     try {
-      // Adding a longer timeout because satellite data fetching can take up to 60 seconds
-      const response = await axios.post(`${API_URL}/api/analyze-area`, { bbox }, { timeout: 120000 });
-      setResults(response.data);
+      // 1. Start the async job
+      const response = await axios.post(`${API_URL}/api/analyze-async`, { bbox });
+      const jobId = response.data.job_id;
+      
+      // 2. Poll the status every 3 seconds
+      const checkStatus = async () => {
+        try {
+           const statusRes = await axios.get(`${API_URL}/api/status/${jobId}`);
+           const status = statusRes.data.status;
+           
+           if (status === 'completed') {
+               setResults(statusRes.data.data);
+               setLoading(false);
+           } else if (status === 'error') {
+               alert('Error analyzing area: ' + statusRes.data.detail);
+               setLoading(false);
+           } else {
+               setLoadingMessage("Fetching and processing space data... (" + status + ")");
+               setTimeout(checkStatus, 3000);
+           }
+        } catch (err) {
+           console.error(err);
+           alert("Status check failed. " + err.message);
+           setLoading(false);
+        }
+      };
+      
+      setTimeout(checkStatus, 2000); // Wait 2s before first poll
+      
     } catch (error) {
       console.error(error);
-      let errorMsg = error.message;
-      if (error.response?.data?.detail) {
-        errorMsg = error.response.data.detail;
-      } else if (error.code === 'ECONNABORTED') {
-        errorMsg = "Request timed out. The area might be too large or the server is waking up. Try a smaller area.";
-      }
-      alert('Error analyzing area: ' + errorMsg);
-    } finally {
+      alert('Error initiating analysis: ' + error.message);
       setLoading(false);
     }
   };
@@ -180,7 +201,7 @@ const MapSelector = ({ setResults, setLoading, loading }) => {
         <div className="loading-overlay">
           <div className="loading-content">
             <Loader2 className="spinner massive-spinner" size={64} color="#10b981" />
-            <h2 className="loading-title">Connecting to Planetary Computer...</h2>
+            <h2 className="loading-title">{loadingMessage}</h2>
             <p className="loading-subtitle">Fetching multi-spectral Sentinel-2 bands, computing NDVI, and running Machine Learning clusters. This may take a minute for large fields.</p>
           </div>
         </div>

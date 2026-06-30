@@ -10,8 +10,9 @@ from rasterio.io import MemoryFile
 import requests
 import pystac_client
 import planetary_computer
-from fastapi import FastAPI, UploadFile, File, Form, HTTPException
+from fastapi import FastAPI, UploadFile, File, Form, HTTPException, BackgroundTasks
 from fastapi.middleware.cors import CORSMiddleware
+import uuid
 from pydantic import BaseModel
 import concurrent.futures
 from rasterio.warp import transform_bounds
@@ -200,15 +201,18 @@ def get_planetary_data(bbox):
 
     return ndvi, ndwi, savi, rgb_arr, image_date
 
-@app.post("/api/analyze-area")
-def analyze_area(req: AreaRequest):
+# Job store for async processing
+jobs = {}
+
+def process_area_job(job_id: str, bbox: list[float]):
+    """Background worker that does the heavy lifting."""
     try:
-        ndvi, ndwi, savi, rgb, img_date = get_planetary_data(req.bbox)
+        jobs[job_id]["status"] = "processing"
+        
+        ndvi, ndwi, savi, rgb, img_date = get_planetary_data(bbox)
         stats = analyze_crop_health(ndvi)
         mean_ndwi = np.nanmean(ndwi)
         
-        # We might not have weather here yet, or frontend can pass it. 
-        # For simplicity, pass None for temp/rain
         y_text, y_emoji, yield_color = estimate_yield(stats['healthy_pct'], mean_ndwi, temp=None, rain=None)
         
         suggestion = get_agricultural_recommendation(stats['healthy_pct'], stats['moderate_pct'], stats['stressed_pct'])
@@ -220,7 +224,7 @@ def analyze_area(req: AreaRequest):
         maps = generate_maps(ndvi, stats['class_matrix'], rgb, ndwi, savi)
         stats.pop('class_matrix')
         
-        return {
+        jobs[job_id]["data"] = {
             "stats": stats,
             "yield": {"text": y_text, "emoji": y_emoji, "color": yield_color},
             "recommendation": suggestion,
@@ -228,8 +232,35 @@ def analyze_area(req: AreaRequest):
             "image_date": img_date,
             "mean_ndwi": float(mean_ndwi)
         }
+        jobs[job_id]["status"] = "completed"
     except Exception as e:
-        raise HTTPException(status_code=500, detail=str(e))
+        jobs[job_id]["status"] = "error"
+        jobs[job_id]["error"] = str(e)
+
+@app.post("/api/analyze-async")
+def analyze_area_async(req: AreaRequest, background_tasks: BackgroundTasks):
+    job_id = str(uuid.uuid4())
+    jobs[job_id] = {"status": "queued"}
+    background_tasks.add_task(process_area_job, job_id, req.bbox)
+    return {"job_id": job_id}
+
+@app.get("/api/status/{job_id}")
+def get_job_status(job_id: str):
+    if job_id not in jobs:
+        raise HTTPException(status_code=404, detail="Job not found")
+    
+    job = jobs[job_id]
+    if job["status"] == "completed":
+        # Optionally delete job after fetching to free memory
+        data = job["data"]
+        del jobs[job_id]
+        return {"status": "completed", "data": data}
+    elif job["status"] == "error":
+        err = job["error"]
+        del jobs[job_id]
+        return {"status": "error", "detail": err}
+    
+    return {"status": job["status"]}
 
 @app.get("/api/weather")
 def get_weather(lat: float, lng: float):
