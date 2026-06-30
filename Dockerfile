@@ -1,11 +1,15 @@
 FROM python:3.10-slim
 
-# Do NOT install system gdal-bin/libgdal-dev — it conflicts with rasterio's bundled GDAL
-# and causes segfaults. Rasterio wheels ship their own libgdal.
+# Install system dependencies required by Rasterio/GDAL
 RUN apt-get update && apt-get install -y \
+    gdal-bin \
+    libgdal-dev \
     gcc \
     g++ \
     && rm -rf /var/lib/apt/lists/*
+
+# Set GDAL version for rasterio compilation
+ENV GDAL_CONFIG=/usr/bin/gdal-config
 
 WORKDIR /app
 
@@ -13,7 +17,8 @@ WORKDIR /app
 COPY backend/requirements.txt .
 
 # Install Python dependencies
-RUN pip install --no-cache-dir -r requirements.txt
+# Force rasterio to compile against system GDAL to prevent version mismatch segfaults
+RUN pip install --no-cache-dir --no-binary rasterio -r requirements.txt
 
 # Copy the entire backend directory
 COPY backend/ ./backend/
@@ -22,5 +27,6 @@ COPY backend/ ./backend/
 ENV PORT=7860
 EXPOSE 7860
 
-# Start the FastAPI server using uvicorn with 2 workers for resilience
-CMD ["uvicorn", "backend.server:app", "--host", "0.0.0.0", "--port", "7860", "--workers", "2", "--timeout-keep-alive", "120"]
+# Start the FastAPI server using uvicorn
+# Single worker to stay within free-tier 2vCPU / 16GB RAM limits
+CMD ["uvicorn", "backend.server:app", "--host", "0.0.0.0", "--port", "7860", "--timeout-keep-alive", "120"]
