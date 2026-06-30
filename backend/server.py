@@ -69,48 +69,7 @@ def fig_to_base64(fig):
     return b64
 
 def generate_maps(ndvi_matrix, class_matrix, rgb_matrix=None, ndwi_matrix=None, savi_matrix=None):
-    maps = {}
-    try:
-        fig, ax = plt.subplots(figsize=(5, 4))
-        im = ax.imshow(ndvi_matrix, cmap='RdYlGn', vmin=-0.2, vmax=1.0)
-        fig.colorbar(im, ax=ax, label='NDVI Value')
-        ax.axis('off')
-        maps['ndvi_map'] = fig_to_base64(fig)
-        
-        fig2, ax2 = plt.subplots(figsize=(5, 4))
-        colors = ['#808080', '#FF0000', '#FFFF00', '#008000']
-        cmap_custom = ListedColormap(colors)
-        im2 = ax2.imshow(class_matrix, cmap=cmap_custom, vmin=-0.5, vmax=3.5)
-        cbar = fig2.colorbar(im2, ax=ax2, ticks=[0, 1, 2, 3])
-        cbar.ax.set_yticklabels(['Non-Vegetation', 'Stressed', 'Moderate', 'Healthy'])
-        ax2.axis('off')
-        maps['stress_map'] = fig_to_base64(fig2)
-        
-        if rgb_matrix is not None:
-            fig3, ax3 = plt.subplots(figsize=(5, 4))
-            ax3.imshow(rgb_matrix)
-            ax3.axis('off')
-            maps['rgb_map'] = fig_to_base64(fig3)
-            
-        if ndwi_matrix is not None:
-            fig4, ax4 = plt.subplots(figsize=(5, 4))
-            im4 = ax4.imshow(ndwi_matrix, cmap='BrBG', vmin=-1.0, vmax=1.0)
-            fig4.colorbar(im4, ax=ax4, label='NDWI Value')
-            ax4.axis('off')
-            maps['ndwi_map'] = fig_to_base64(fig4)
-            
-        if savi_matrix is not None:
-            fig5, ax5 = plt.subplots(figsize=(5, 4))
-            im5 = ax5.imshow(savi_matrix, cmap='YlGn', vmin=-0.2, vmax=1.0)
-            fig5.colorbar(im5, ax=ax5, label='SAVI Value')
-            ax5.axis('off')
-            maps['savi_map'] = fig_to_base64(fig5)
-    except Exception as e:
-        logger.error(f"Error generating maps: {e}")
-    finally:
-        plt.close('all')
-        gc.collect()
-    return maps
+    return {}
 
 def load_data_from_bytes(file_bytes):
     with MemoryFile(file_bytes) as memfile:
