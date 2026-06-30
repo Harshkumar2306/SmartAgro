@@ -143,7 +143,7 @@ def get_planetary_data(bbox):
         datetime=time_range,
         query={"eo:cloud_cover": {"lt": 20}},
         sortby=[{"field": "eo:cloud_cover", "direction": "asc"}],
-        max_items=5,
+        max_items=2, # Reduced to 2 to prevent Render timeouts
     )
 
     all_items = list(search.items())
@@ -175,12 +175,16 @@ def get_planetary_data(bbox):
         except Exception: return 0.0
 
     for item in all_items:
-        # Process sequentially to avoid Out of Memory (OOM) crashes on 512MB free tier
-        process_band(item, "B04", red_canvas)
-        process_band(item, "B08", nir_canvas)
-        process_band(item, "B03", green_canvas)
-        process_band(item, "B02", blue_canvas)
-        
+        # Use 2 workers to balance speed and memory (avoids OOM while being faster than sequential)
+        with concurrent.futures.ThreadPoolExecutor(max_workers=2) as executor:
+            futures = [
+                executor.submit(process_band, item, "B04", red_canvas),
+                executor.submit(process_band, item, "B08", nir_canvas),
+                executor.submit(process_band, item, "B03", green_canvas),
+                executor.submit(process_band, item, "B02", blue_canvas)
+            ]
+            concurrent.futures.wait(futures)
+            
         if np.sum(red_canvas > 0) / red_canvas.size > 0.98: break
 
     valid_mask = (red_canvas > 0) | (nir_canvas > 0) | (green_canvas > 0) | (blue_canvas > 0)
