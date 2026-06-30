@@ -7,7 +7,7 @@ import '@geoman-io/leaflet-geoman-free/dist/leaflet-geoman.css';
 import { GeoSearchControl, OpenStreetMapProvider } from 'leaflet-geosearch';
 import 'leaflet/dist/leaflet.css';
 import 'leaflet-geosearch/dist/geosearch.css';
-import { Loader2, Search } from 'lucide-react';
+import { Loader2, Search, Square } from 'lucide-react';
 
 // Force connection to Hugging Face (ignores Vercel's old environment variables)
 const API_URL = 'https://harsh0o23-smart-agro-api.hf.space';
@@ -106,7 +106,48 @@ const AdvancedMapControls = ({ setBbox }) => {
 
 const MapSelector = ({ setResults, setLoading, loading }) => {
   const [bbox, setBbox] = useState(null);
+  const [map, setMap] = useState(null);
   const [loadingMessage, setLoadingMessage] = useState("Connecting to Planetary Computer...");
+
+  const handleAutoSquare = () => {
+    if (!map) return;
+    
+    const center = map.getCenter();
+    const offset = 0.02; // Safely sizes a box within the satellite engine limits (~1000 ha)
+    
+    // Clear existing shapes
+    map.eachLayer((layer) => {
+      if (layer.pm && layer._path) {
+        layer.remove();
+      }
+    });
+
+    const bounds = [
+      [center.lat - offset, center.lng - offset],
+      [center.lat + offset, center.lng + offset]
+    ];
+    
+    const rect = L.rectangle(bounds, { color: '#3b82f6', weight: 3 });
+    rect.addTo(map);
+    rect.pm.enable(); // allow editing
+
+    setBbox([
+      center.lng - offset,
+      center.lat - offset,
+      center.lng + offset,
+      center.lat + offset
+    ]);
+    
+    rect.on('pm:edit', () => {
+      const newBounds = rect.getBounds();
+      setBbox([
+        newBounds.getWest(),
+        newBounds.getSouth(),
+        newBounds.getEast(),
+        newBounds.getNorth()
+      ]);
+    });
+  };
 
   const handleAnalyze = async () => {
     if (!bbox) return;
@@ -196,7 +237,7 @@ const MapSelector = ({ setResults, setLoading, loading }) => {
   return (
     <div className="map-selector-container">
       <div className="map-wrapper" style={{ position: 'relative' }}>
-        <MapContainer center={[20.5937, 78.9629]} zoom={5} style={{ height: '500px', width: '100%', borderRadius: '16px', zIndex: 1 }}>
+        <MapContainer ref={setMap} center={[20.5937, 78.9629]} zoom={5} style={{ height: '500px', width: '100%', borderRadius: '16px', zIndex: 1 }}>
           <TileLayer
             url="https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}"
             attribution="Tiles &copy; Esri &mdash; Source: Esri, i-cubed, USDA, USGS, AEX, GeoEye, Getmapping, Aerogrid, IGN, IGP, UPR-EGP, and the GIS User Community"
@@ -214,8 +255,31 @@ const MapSelector = ({ setResults, setLoading, loading }) => {
             Select Region
           </h3>
           <p style={{ color: '#94a3b8', fontSize: '0.9rem', marginBottom: '1rem', lineHeight: '1.4' }}>
-            Use the search bar on the map to find your farm, then use the polygon tool (⬠) to draw your exact crop boundary.
+            Find your farm, then draw a polygon (⬠) or use the button below to auto-select a safe square.
           </p>
+
+          <button 
+            onClick={handleAutoSquare}
+            style={{ 
+              width: '100%', 
+              background: 'rgba(59, 130, 246, 0.2)', 
+              border: '1px solid #3b82f6', 
+              color: '#60a5fa', 
+              padding: '0.6rem', 
+              borderRadius: '8px', 
+              cursor: 'pointer',
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'center',
+              gap: '0.5rem',
+              marginBottom: '1rem',
+              transition: 'all 0.2s'
+            }}
+            onMouseOver={(e) => { e.currentTarget.style.background = 'rgba(59, 130, 246, 0.3)'; }}
+            onMouseOut={(e) => { e.currentTarget.style.background = 'rgba(59, 130, 246, 0.2)'; }}
+          >
+            <Square size={16} /> Auto Crop Square (Safe Size)
+          </button>
           
           <div className="bounds-display" style={{ 
             background: bbox ? 'rgba(16, 185, 129, 0.1)' : 'rgba(255, 255, 255, 0.05)',
