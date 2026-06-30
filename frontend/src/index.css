@@ -156,52 +156,72 @@ h1 {
 /* Dashboard Metrics */
 .metrics-grid {
   display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+  grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
   gap: 1.5rem;
-  margin-bottom: 2rem;
+  margin-bottom: 2.5rem;
 }
 
 .metric-card {
-  background: rgba(255, 255, 255, 0.03);
-  border: 1px solid var(--border-color);
-  border-radius: 12px;
-  padding: 1.5rem;
+  background: rgba(255, 255, 255, 0.05);
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  border-radius: 16px;
+  padding: 1.8rem;
   text-align: center;
+  box-shadow: 0 4px 20px rgba(0, 0, 0, 0.2);
+  transition: transform 0.3s ease, box-shadow 0.3s ease;
+}
+
+.metric-card:hover {
+  transform: translateY(-4px);
+  box-shadow: 0 8px 30px rgba(0, 0, 0, 0.4);
+  border-color: rgba(255, 255, 255, 0.2);
 }
 
 .metric-title {
   color: var(--text-secondary);
-  font-size: 0.9rem;
+  font-size: 0.95rem;
   text-transform: uppercase;
-  letter-spacing: 1px;
-  margin-bottom: 0.5rem;
+  letter-spacing: 1.5px;
+  margin-bottom: 0.75rem;
+  font-weight: 600;
 }
 
 .metric-value {
-  font-size: 2rem;
+  font-size: 2.2rem;
   font-weight: 800;
+  letter-spacing: -1px;
 }
 
 /* Maps Grid */
 .maps-grid {
   display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
-  gap: 2rem;
-  margin-top: 2rem;
+  grid-template-columns: repeat(auto-fit, minmax(350px, 1fr));
+  gap: 2.5rem;
+  margin-top: 0;
 }
 
 .map-card {
-  border-radius: 12px;
+  border-radius: 16px;
   overflow: hidden;
-  border: 1px solid var(--border-color);
-  background: rgba(0, 0, 0, 0.3);
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  background: rgba(0, 0, 0, 0.4);
+  box-shadow: 0 4px 20px rgba(0, 0, 0, 0.3);
+  transition: transform 0.3s ease;
+}
+
+.map-card:hover {
+  transform: translateY(-4px);
+  border-color: rgba(255, 255, 255, 0.2);
 }
 
 .map-card h3 {
-  padding: 1rem;
-  background: rgba(255, 255, 255, 0.05);
-  border-bottom: 1px solid var(--border-color);
-  font-size: 1.1rem;
+  padding: 1.25rem;
+  background: rgba(255, 255, 255, 0.03);
+  border-bottom: 1px solid rgba(255, 255, 255, 0.1);
+  font-size: 1.15rem;
+  font-weight: 600;
+  text-align: center;
+  color: #e2e8f0;
 }
 
 .map-image {
@@ -213,18 +233,27 @@ h1 {
 /* Recommendation Box */
 .recommendation-box {
   margin-top: 2rem;
-  padding: 1.5rem;
-  border-radius: 12px;
-  background: rgba(59, 130, 246, 0.1);
+  padding: 1.75rem;
+  border-radius: 16px;
+  background: linear-gradient(145deg, rgba(59, 130, 246, 0.1) 0%, rgba(16, 185, 129, 0.05) 100%);
   border: 1px solid rgba(59, 130, 246, 0.3);
+  box-shadow: 0 4px 20px rgba(59, 130, 246, 0.15);
   display: flex;
-  gap: 1rem;
+  gap: 1.25rem;
   align-items: flex-start;
+  transition: transform 0.3s ease, box-shadow 0.3s ease;
+}
+
+.recommendation-box:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 6px 30px rgba(59, 130, 246, 0.25);
+  border-color: rgba(59, 130, 246, 0.5);
 }
 
 .recommendation-icon {
   color: #3b82f6;
   flex-shrink: 0;
+  filter: drop-shadow(0 0 8px rgba(59, 130, 246, 0.5));
 }
 
 /* Floating Map Panel */
