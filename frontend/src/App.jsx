@@ -14,7 +14,6 @@ function App() {
     <div className="app-container">
       <header>
         <h1>SmartAgro</h1>
-        <p className="subtitle">Multi-Spectral Satellite Analysis & AI Crop Yield Prediction</p>
       </header>
 
       {!results ? (
