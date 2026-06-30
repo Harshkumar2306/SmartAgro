@@ -167,11 +167,13 @@ def get_planetary_data(bbox):
         if band_name not in item.assets: return 0.0
         href = item.assets[band_name].href
         try:
-            # Memory unlocked for Hugging Face Spaces (16GB RAM)
+            # Add explicit memory limits even on 16GB RAM to prevent endless caching
             env = rasterio.Env(
                 GDAL_DISABLE_READDIR_ON_OPEN="EMPTY_DIR", 
                 CPL_VSIL_CURL_ALLOWED_EXTENSIONS="tif,tiff", 
                 VSI_CACHE=True, 
+                VSI_CACHE_SIZE="500000000", # 500 MB max for curl cache
+                GDAL_CACHEMAX="1024", # 1 GB max block cache
                 GDAL_HTTP_MULTIMAC="YES", 
                 GDAL_HTTP_MERGE_CONSECUTIVE_READS="YES"
             )
