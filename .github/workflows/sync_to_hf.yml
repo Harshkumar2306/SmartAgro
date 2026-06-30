@@ -14,8 +14,7 @@ jobs:
           fetch-depth: 0
           lfs: true
       - name: Push to Hugging Face
-        env:
-          HF_TOKEN: ${{ secrets.HF_TOKEN }}
-        run: |
-          # Pushing automatically to harsh0o23/smart-agro-api
-          git push --force https://harsh0o23:$HF_TOKEN@huggingface.co/spaces/harsh0o23/smart-agro-api HEAD:main
+        uses: huggingface/spaces-github-action@main
+        with:
+          space: harsh0o23/smart-agro-api
+          token: ${{ secrets.HF_TOKEN }}
