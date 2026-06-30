@@ -1,28 +1,60 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import axios from 'axios';
 import { MapContainer, TileLayer, FeatureGroup, useMap } from 'react-leaflet';
-import { EditControl } from 'react-leaflet-draw';
+import L from 'leaflet';
+import 'leaflet-draw';
 import 'leaflet/dist/leaflet.css';
 import 'leaflet-draw/dist/leaflet.draw.css';
 import { Loader2 } from 'lucide-react';
 
 const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:8000';
 
+const DrawControl = ({ setBbox }) => {
+  const map = useMap();
+  
+  useEffect(() => {
+    const drawnItems = new L.FeatureGroup();
+    map.addLayer(drawnItems);
+    
+    const drawControl = new L.Control.Draw({
+      edit: {
+        featureGroup: drawnItems
+      },
+      draw: {
+        polyline: false,
+        polygon: true,
+        circle: false,
+        marker: false,
+        circlemarker: false,
+        rectangle: true
+      }
+    });
+    
+    map.addControl(drawControl);
+    
+    map.on(L.Draw.Event.CREATED, (e) => {
+      drawnItems.addLayer(e.layer);
+      const bounds = e.layer.getBounds();
+      const _bbox = [
+        bounds.getWest(),
+        bounds.getSouth(),
+        bounds.getEast(),
+        bounds.getNorth()
+      ];
+      setBbox(_bbox);
+    });
+
+    return () => {
+      map.removeControl(drawControl);
+      map.removeLayer(drawnItems);
+    };
+  }, [map, setBbox]);
+
+  return null;
+};
+
 const MapSelector = ({ setResults, setLoading, loading }) => {
   const [bbox, setBbox] = useState(null);
-
-  const onCreated = (e) => {
-    const layer = e.layer;
-    const bounds = layer.getBounds();
-    // bounds is a LatLngBounds object
-    const _bbox = [
-      bounds.getWest(),
-      bounds.getSouth(),
-      bounds.getEast(),
-      bounds.getNorth()
-    ];
-    setBbox(_bbox);
-  };
 
   const handleAnalyze = async () => {
     if (!bbox) return;
@@ -46,21 +78,7 @@ const MapSelector = ({ setResults, setLoading, loading }) => {
             url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png"
             attribution="&copy; OpenStreetMap contributors"
           />
-          <FeatureGroup>
-            <EditControl
-              position="topright"
-              onCreated={onCreated}
-              draw={{
-                polyline: false,
-                circle: false,
-                circlemarker: false,
-                marker: false,
-                polygon: true,
-                rectangle: true,
-              }}
-              edit={{ edit: false, remove: true }}
-            />
-          </FeatureGroup>
+          <DrawControl setBbox={setBbox} />
         </MapContainer>
       </div>
 
