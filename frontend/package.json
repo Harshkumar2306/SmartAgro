@@ -12,6 +12,8 @@
   "dependencies": {
     "@geoman-io/leaflet-geoman-free": "^2.20.0",
     "axios": "^1.18.1",
+    "html2canvas": "^1.4.1",
+    "jspdf": "^4.2.1",
     "leaflet": "^1.9.4",
     "leaflet-geosearch": "^4.4.0",
     "lucide-react": "^1.22.0",
