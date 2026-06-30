@@ -175,15 +175,13 @@ def get_planetary_data(bbox):
         except Exception: return 0.0
 
     for item in all_items:
-        with concurrent.futures.ThreadPoolExecutor(max_workers=4) as executor:
-            futures = [
-                executor.submit(process_band, item, "B04", red_canvas),
-                executor.submit(process_band, item, "B08", nir_canvas),
-                executor.submit(process_band, item, "B03", green_canvas),
-                executor.submit(process_band, item, "B02", blue_canvas)
-            ]
-            concurrent.futures.wait(futures)
-            if np.sum(red_canvas > 0) / red_canvas.size > 0.98: break
+        # Process sequentially to avoid Out of Memory (OOM) crashes on 512MB free tier
+        process_band(item, "B04", red_canvas)
+        process_band(item, "B08", nir_canvas)
+        process_band(item, "B03", green_canvas)
+        process_band(item, "B02", blue_canvas)
+        
+        if np.sum(red_canvas > 0) / red_canvas.size > 0.98: break
 
     valid_mask = (red_canvas > 0) | (nir_canvas > 0) | (green_canvas > 0) | (blue_canvas > 0)
     rgb_arr = np.clip(np.dstack((red_canvas, green_canvas, blue_canvas)) / 3000.0, 0, 1)
