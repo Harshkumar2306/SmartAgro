@@ -13,6 +13,7 @@
     "axios": "^1.18.1",
     "leaflet": "^1.9.4",
     "leaflet-draw": "^1.0.4",
+    "leaflet-geosearch": "^4.4.0",
     "lucide-react": "^1.22.0",
     "react": "^19.2.7",
     "react-dom": "^19.2.7",
