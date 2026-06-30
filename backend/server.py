@@ -163,61 +163,165 @@ class AreaRequest(BaseModel):
 # ====================================================================
 # SATELLITE WORKER SCRIPT
 # This runs in a SEPARATE PROCESS to protect the main server from
-# GDAL/rasterio segfaults. If rasterio crashes, only this subprocess
-# dies - the main uvicorn server stays alive.
+# GDAL/rasterio/scikit-learn/matplotlib segfaults.
 # ====================================================================
 SATELLITE_WORKER_SCRIPT = '''
 import sys
 import json
 import datetime
-import numpy as np
+import io
+import base64
 import gc
+import traceback
+import numpy as np
+import pystac_client
+import planetary_computer
+import rasterio
+from rasterio.warp import transform_bounds
+from rasterio.windows import from_bounds
+from rasterio.enums import Resampling
+
+# Explicitly limit threads to prevent OpenMP segfaults
+import os
+os.environ["OMP_NUM_THREADS"] = "1"
+os.environ["OPENBLAS_NUM_THREADS"] = "1"
+
+import matplotlib
+matplotlib.use('Agg')
+from matplotlib.figure import Figure
+from matplotlib.backends.backend_agg import FigureCanvasAgg as FigureCanvas
+from matplotlib.colors import ListedColormap
+from sklearn.cluster import KMeans
+
+def analyze_crop_health(ndvi_matrix):
+    total_pixels = ndvi_matrix.size
+    veg_mask = ndvi_matrix > 0.1
+    vegetation_pixels = np.sum(veg_mask)
+    vegetation_coverage = (vegetation_pixels / total_pixels) * 100 if total_pixels > 0 else 0
+    classification = np.zeros_like(ndvi_matrix, dtype=np.uint8)
+    
+    if vegetation_pixels > 10:
+        veg_values = ndvi_matrix[veg_mask].reshape(-1, 1)
+        kmeans = KMeans(n_clusters=3, random_state=42, n_init=10)
+        labels = kmeans.fit_predict(veg_values)
+        centroids = kmeans.cluster_centers_.flatten()
+        sorted_indices = np.argsort(centroids)
+        remapped_labels = np.zeros_like(labels, dtype=np.uint8)
+        remapped_labels[labels == sorted_indices[0]] = 1
+        remapped_labels[labels == sorted_indices[1]] = 2
+        remapped_labels[labels == sorted_indices[2]] = 3
+        classification[veg_mask] = remapped_labels
+        healthy_pct = (np.sum(remapped_labels == 3) / vegetation_pixels) * 100
+        moderate_pct = (np.sum(remapped_labels == 2) / vegetation_pixels) * 100
+        stressed_pct = (np.sum(remapped_labels == 1) / vegetation_pixels) * 100
+    else:
+        healthy_pct = moderate_pct = stressed_pct = 0.0
+
+    return {
+        'vegetation_coverage': vegetation_coverage,
+        'vegetation_pixels': int(vegetation_pixels),
+        'healthy_pct': healthy_pct,
+        'moderate_pct': moderate_pct,
+        'stressed_pct': stressed_pct,
+        'class_matrix': classification
+    }
+
+def fig_to_base64(fig):
+    buf = io.BytesIO()
+    fig.savefig(buf, format="png", bbox_inches='tight', transparent=True, dpi=80)
+    buf.seek(0)
+    b64 = base64.b64encode(buf.getvalue()).decode("utf-8")
+    buf.close()
+    return b64
+
+def generate_maps(ndvi_matrix, class_matrix, rgb_matrix=None, ndwi_matrix=None, savi_matrix=None):
+    maps = {}
+    try:
+        fig = Figure(figsize=(5, 4))
+        FigureCanvas(fig)
+        ax = fig.add_subplot(111)
+        im = ax.imshow(ndvi_matrix, cmap='RdYlGn', vmin=-0.2, vmax=1.0)
+        fig.colorbar(im, ax=ax, label='NDVI Value')
+        ax.axis('off')
+        maps['ndvi_map'] = fig_to_base64(fig)
+        
+        fig2 = Figure(figsize=(5, 4))
+        FigureCanvas(fig2)
+        ax2 = fig2.add_subplot(111)
+        colors = ['#808080', '#FF0000', '#FFFF00', '#008000']
+        cmap_custom = ListedColormap(colors)
+        im2 = ax2.imshow(class_matrix, cmap=cmap_custom, vmin=-0.5, vmax=3.5)
+        cbar = fig2.colorbar(im2, ax=ax2, ticks=[0, 1, 2, 3])
+        cbar.ax.set_yticklabels(['Non-Vegetation', 'Stressed', 'Moderate', 'Healthy'])
+        ax2.axis('off')
+        maps['stress_map'] = fig_to_base64(fig2)
+        
+        if rgb_matrix is not None:
+            fig3 = Figure(figsize=(5, 4))
+            FigureCanvas(fig3)
+            ax3 = fig3.add_subplot(111)
+            ax3.imshow(rgb_matrix)
+            ax3.axis('off')
+            maps['rgb_map'] = fig_to_base64(fig3)
+            
+        if ndwi_matrix is not None:
+            fig4 = Figure(figsize=(5, 4))
+            FigureCanvas(fig4)
+            ax4 = fig4.add_subplot(111)
+            im4 = ax4.imshow(ndwi_matrix, cmap='BrBG', vmin=-1.0, vmax=1.0)
+            fig4.colorbar(im4, ax=ax4, label='NDWI Value')
+            ax4.axis('off')
+            maps['ndwi_map'] = fig_to_base64(fig4)
+            
+        if savi_matrix is not None:
+            fig5 = Figure(figsize=(5, 4))
+            FigureCanvas(fig5)
+            ax5 = fig5.add_subplot(111)
+            im5 = ax5.imshow(savi_matrix, cmap='YlGn', vmin=-0.2, vmax=1.0)
+            fig5.colorbar(im5, ax=ax5, label='SAVI Value')
+            ax5.axis('off')
+            maps['savi_map'] = fig_to_base64(fig5)
+    finally:
+        gc.collect()
+    return maps
 
 def main():
-    bbox = json.loads(sys.argv[1])
-    output_file = sys.argv[2]
-    
-    import pystac_client
-    import planetary_computer
-    import rasterio
-    from rasterio.warp import transform_bounds
-    from rasterio.windows import from_bounds
-    from rasterio.enums import Resampling
-    
-    min_lon, min_lat, max_lon, max_lat = bbox
-    
-    catalog = pystac_client.Client.open(
-        "https://planetarycomputer.microsoft.com/api/stac/v1",
-        modifier=planetary_computer.sign_inplace,
-    )
-    end_date = datetime.datetime.now()
-    start_date = end_date - datetime.timedelta(days=120)
-    time_range = f"{start_date.strftime('%Y-%m-%d')}/{end_date.strftime('%Y-%m-%d')}"
+    try:
+        bbox = json.loads(sys.argv[1])
+        output_file = sys.argv[2]
+        min_lon, min_lat, max_lon, max_lat = bbox
+        
+        catalog = pystac_client.Client.open(
+            "https://planetarycomputer.microsoft.com/api/stac/v1",
+            modifier=planetary_computer.sign_inplace,
+        )
+        end_date = datetime.datetime.now()
+        start_date = end_date - datetime.timedelta(days=120)
+        time_range = f"{start_date.strftime('%Y-%m-%d')}/{end_date.strftime('%Y-%m-%d')}"
 
-    search = catalog.search(
-        collections=["sentinel-2-l2a"],
-        bbox=[min_lon, min_lat, max_lon, max_lat],
-        datetime=time_range,
-        query={"eo:cloud_cover": {"lt": 20}},
-        sortby=[{"field": "eo:cloud_cover", "direction": "asc"}],
-        max_items=1,
-    )
+        search = catalog.search(
+            collections=["sentinel-2-l2a"],
+            bbox=[min_lon, min_lat, max_lon, max_lat],
+            datetime=time_range,
+            query={"eo:cloud_cover": {"lt": 20}},
+            sortby=[{"field": "eo:cloud_cover", "direction": "asc"}],
+            max_items=1,
+        )
 
-    all_items = list(search.items())
-    if not all_items:
-        raise ValueError("No cloud-free Sentinel-2 imagery found for this area in the last 120 days.")
+        all_items = list(search.items())
+        if not all_items:
+            raise ValueError("No cloud-free Sentinel-2 imagery found for this area in the last 120 days.")
 
-    item = all_items[0]
-    image_date = item.datetime.strftime("%Y-%m-%d") if item.datetime else "Unknown"
-    
-    target_size = 256
-    bbox_4326 = [min_lon, min_lat, max_lon, max_lat]
-    
-    def read_band(band_name):
-        if band_name not in item.assets:
-            return np.zeros((target_size, target_size), dtype=np.float32)
-        href = item.assets[band_name].href
-        try:
+        item = all_items[0]
+        image_date = item.datetime.strftime("%Y-%m-%d") if item.datetime else "Unknown"
+        
+        target_size = 256
+        bbox_4326 = [min_lon, min_lat, max_lon, max_lat]
+        
+        def read_band(band_name):
+            if band_name not in item.assets:
+                return np.zeros((target_size, target_size), dtype=np.float32)
+            href = item.assets[band_name].href
             with rasterio.Env(GDAL_DISABLE_READDIR_ON_OPEN="EMPTY_DIR", CPL_VSIL_CURL_ALLOWED_EXTENSIONS="tif,tiff"):
                 with rasterio.open(href) as src:
                     src_bounds = transform_bounds("EPSG:4326", src.crs, *bbox_4326)
@@ -226,34 +330,45 @@ def main():
                                    out_shape=(target_size, target_size),
                                    resampling=Resampling.nearest).astype(np.float32)
                     return data
-        except Exception as e:
-            print(f"Error reading band {band_name}: {e}", file=sys.stderr)
-            return np.zeros((target_size, target_size), dtype=np.float32)
-        finally:
-            gc.collect()
 
-    red = read_band("B04")
-    nir = read_band("B08")
-    green = read_band("B03")
-    blue = read_band("B02")
+        red = read_band("B04")
+        nir = read_band("B08")
+        green = read_band("B03")
+        blue = read_band("B02")
 
-    valid_mask = (red > 0) | (nir > 0) | (green > 0) | (blue > 0)
-    rgb_arr = np.clip(np.dstack((red, green, blue)) / 3000.0, 0, 1)
+        valid_mask = (red > 0) | (nir > 0) | (green > 0) | (blue > 0)
+        rgb_arr = np.clip(np.dstack((red, green, blue)) / 3000.0, 0, 1)
 
-    np.seterr(divide='ignore', invalid='ignore')
-    ndvi = np.where(valid_mask, (nir - red) / (nir + red + 1e-5), 0.0)
-    ndvi = np.clip(np.nan_to_num(ndvi), -1.0, 1.0)
-    ndwi = np.where(valid_mask, (green - nir) / (green + nir + 1e-5), 0.0)
-    ndwi = np.clip(np.nan_to_num(ndwi), -1.0, 1.0)
-    L = 0.5
-    savi = np.where(valid_mask, ((nir - red) / (nir + red + L)) * (1 + L), 0.0)
-    savi = np.clip(np.nan_to_num(savi), -1.0, 1.0)
-
-    # Save arrays to a compressed npz file
-    np.savez_compressed(output_file, ndvi=ndvi, ndwi=ndwi, savi=savi, rgb=rgb_arr)
-    
-    # Print image_date to stdout for the parent process to read
-    print(json.dumps({"image_date": image_date, "status": "ok"}))
+        np.seterr(divide='ignore', invalid='ignore')
+        ndvi = np.where(valid_mask, (nir - red) / (nir + red + 1e-5), 0.0)
+        ndvi = np.clip(np.nan_to_num(ndvi), -1.0, 1.0)
+        ndwi = np.where(valid_mask, (green - nir) / (green + nir + 1e-5), 0.0)
+        ndwi = np.clip(np.nan_to_num(ndwi), -1.0, 1.0)
+        L = 0.5
+        savi = np.where(valid_mask, ((nir - red) / (nir + red + L)) * (1 + L), 0.0)
+        savi = np.clip(np.nan_to_num(savi), -1.0, 1.0)
+        
+        # Heavy ML Analysis
+        stats = analyze_crop_health(ndvi)
+        mean_ndwi = float(np.nanmean(ndwi))
+        
+        # Generate Maps
+        maps = generate_maps(ndvi, stats.pop('class_matrix'), rgb_arr, ndwi, savi)
+        
+        result_payload = {
+            "stats": stats,
+            "image_date": image_date,
+            "mean_ndwi": mean_ndwi,
+            "maps": maps
+        }
+        
+        with open(output_file, 'w') as f:
+            json.dump(result_payload, f)
+            
+        print(json.dumps({"status": "ok"}))
+    except Exception as e:
+        print(json.dumps({"status": "error", "message": str(e)}), file=sys.stderr)
+        sys.exit(1)
 
 if __name__ == "__main__":
     main()
@@ -304,17 +419,14 @@ def get_weather_context(lat, lon):
 
 def run_satellite_subprocess(bbox):
     """
-    Runs the satellite data fetching in a SEPARATE PROCESS.
-    If GDAL/rasterio segfaults, only the subprocess dies.
-    Returns (ndvi, ndwi, savi, rgb, image_date) numpy arrays.
+    Runs the entire heavy ML pipeline and Satellite download in an isolated subprocess.
+    Returns the parsed JSON payload containing stats and base64 images.
     """
-    # Write the worker script to a temp file
     with tempfile.NamedTemporaryFile(mode='w', suffix='.py', delete=False, dir='/tmp') as f:
         f.write(SATELLITE_WORKER_SCRIPT)
         script_path = f.name
     
-    # Create temp file for numpy output
-    output_path = tempfile.mktemp(suffix='.npz', dir='/tmp')
+    output_path = tempfile.mktemp(suffix='.json', dir='/tmp')
     
     try:
         bbox_json = json.dumps(bbox)
@@ -324,7 +436,7 @@ def run_satellite_subprocess(bbox):
             [sys.executable, script_path, bbox_json, output_path],
             capture_output=True,
             text=True,
-            timeout=120  # 2 minute timeout
+            timeout=120
         )
         
         if result.returncode != 0:
@@ -332,23 +444,13 @@ def run_satellite_subprocess(bbox):
             logger.error(f"Subprocess failed (exit {result.returncode}): {error_msg}")
             raise RuntimeError(f"Satellite data fetch failed: {error_msg}")
         
-        # Parse the JSON output from stdout
-        stdout_lines = result.stdout.strip().split('\n')
-        metadata = json.loads(stdout_lines[-1])
-        image_date = metadata["image_date"]
-        
-        # Load the numpy arrays
-        data = np.load(output_path)
-        ndvi = data['ndvi']
-        ndwi = data['ndwi']
-        savi = data['savi']
-        rgb = data['rgb']
-        
-        logger.info(f"Subprocess completed successfully. Image date: {image_date}")
-        return ndvi, ndwi, savi, rgb, image_date
+        with open(output_path, 'r') as f:
+            payload = json.load(f)
+            
+        logger.info(f"Subprocess completed successfully.")
+        return payload
         
     finally:
-        # Clean up temp files
         try:
             os.unlink(script_path)
         except:
@@ -360,7 +462,7 @@ def run_satellite_subprocess(bbox):
 
 
 def process_area_job(job_id: str, bbox: list[float]):
-    """Background worker. Uses subprocess for satellite data to survive segfaults."""
+    """Background worker. Parent process only handles lightweight API context logic."""
     try:
         logger.info(f"[{job_id}] Starting job")
         set_job(job_id, {"status": "processing"})
@@ -382,12 +484,13 @@ def process_area_job(job_id: str, bbox: list[float]):
             "weather": weather_ctx
         }
         
-        # Run satellite fetch in ISOLATED subprocess
-        ndvi, ndwi, savi, rgb, img_date = run_satellite_subprocess(bbox)
+        # Run ALL heavy processing in ISOLATED subprocess
+        payload = run_satellite_subprocess(bbox)
         
-        logger.info(f"[{job_id}] Running ML analysis...")
-        stats = analyze_crop_health(ndvi)
-        mean_ndwi = float(np.nanmean(ndwi))
+        stats = payload['stats']
+        mean_ndwi = payload['mean_ndwi']
+        image_date = payload['image_date']
+        maps = payload['maps']
         
         y_text, y_emoji, yield_color = estimate_yield(stats['healthy_pct'], mean_ndwi, temp=None, rain=None)
         
@@ -403,19 +506,12 @@ def process_area_job(job_id: str, bbox: list[float]):
         elif mean_ndwi > 0.3:
             suggestion += " Satellite moisture index indicates Waterlogging Warning."
             
-        logger.info(f"[{job_id}] Generating maps...")
-        maps = generate_maps(ndvi, stats['class_matrix'], rgb, ndwi, savi)
-        
-        del ndvi, ndwi, savi, rgb
-        stats.pop('class_matrix')
-        gc.collect()
-        
         result = {
             "stats": stats,
             "yield": {"text": y_text, "emoji": y_emoji, "color": yield_color},
             "recommendation": suggestion,
             "maps": maps,
-            "image_date": img_date,
+            "image_date": image_date,
             "mean_ndwi": mean_ndwi,
             "context": context_data
         }
@@ -428,8 +524,6 @@ def process_area_job(job_id: str, bbox: list[float]):
         logger.error(f"[{job_id}] FAILED: {error_msg}")
         logger.error(traceback.format_exc())
         set_job(job_id, {"status": "error", "error": error_msg})
-    finally:
-        gc.collect()
 
 
 @app.post("/api/analyze-async")
