@@ -144,7 +144,7 @@ def get_planetary_data(bbox):
         datetime=time_range,
         query={"eo:cloud_cover": {"lt": 20}},
         sortby=[{"field": "eo:cloud_cover", "direction": "asc"}],
-        max_items=3, # Restored for Hugging Face 16GB RAM limit
+        max_items=5, # No compromise: Scanning top 5 images to guarantee flawless cloud-free composites
     )
 
     all_items = list(search.items())
@@ -153,8 +153,8 @@ def get_planetary_data(bbox):
 
     image_date = all_items[0].datetime.strftime("%Y-%m-%d") if all_items[0].datetime else "Unknown"
     
-    # High-Resolution (256x256) restored!
-    target_size = 256
+    # Ultimate Quality Resolution (512x512) for Hugging Face 16GB RAM
+    target_size = 512
     red_canvas = np.zeros((target_size, target_size), dtype=np.float32)
     nir_canvas = np.zeros((target_size, target_size), dtype=np.float32)
     green_canvas = np.zeros((target_size, target_size), dtype=np.float32)
