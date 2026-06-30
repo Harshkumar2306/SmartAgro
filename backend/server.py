@@ -22,7 +22,7 @@ from backend.ndvi import calculate_ndvi
 from backend.stress_detection import analyze_crop_health
 from backend.yield_prediction import estimate_yield
 from backend.recommendations import get_agricultural_recommendation, INDIAN_STATES_AGRI_DATA
-# from report_generator import create_pdf_report # (Optional for later)
+import math
 
 app = FastAPI(title="Smart Agri API")
 
@@ -204,22 +204,88 @@ def get_planetary_data(bbox):
 # Job store for async processing
 jobs = {}
 
+def get_season():
+    month = datetime.datetime.now().month
+    if 6 <= month <= 10:
+        return "Kharif (Monsoon)"
+    elif 11 <= month <= 12 or 1 <= month <= 3:
+        return "Rabi (Winter)"
+    else:
+        return "Zaid (Summer)"
+
+def get_area_hectares(bbox):
+    min_lon, min_lat, max_lon, max_lat = bbox
+    # Approximate Haversine calculation for bounding box area
+    R = 6371.0 # Earth radius in km
+    lat_dist = math.radians(max_lat - min_lat) * R
+    lon_dist = math.radians(max_lon - min_lon) * R * math.cos(math.radians((min_lat + max_lat) / 2))
+    area_km2 = lat_dist * lon_dist
+    return area_km2 * 100 # 1 km2 = 100 hectares
+
+def get_location_context(lat, lon):
+    try:
+        # Nominatim Reverse Geocoding with explicit User-Agent
+        url = f"https://nominatim.openstreetmap.org/reverse?lat={lat}&lon={lon}&format=json"
+        headers = {'User-Agent': 'SmartAgroApp/1.0 (contact@example.com)'}
+        res = requests.get(url, headers=headers, timeout=5)
+        if res.status_code == 200:
+            data = res.json()
+            state = data.get("address", {}).get("state", "Unknown")
+            region_data = INDIAN_STATES_AGRI_DATA.get(state, None)
+            return {"state": state, "agri_data": region_data, "display_name": data.get("display_name", "")}
+    except:
+        pass
+    return {"state": "Unknown", "agri_data": None, "display_name": ""}
+
+def get_weather_context(lat, lon):
+    try:
+        url = f"https://api.open-meteo.com/v1/forecast?latitude={lat}&longitude={lon}&current=temperature_2m,relative_humidity_2m,precipitation,wind_speed_10m"
+        res = requests.get(url, timeout=5)
+        if res.status_code == 200:
+            return res.json().get('current', {})
+    except:
+        pass
+    return None
+
 def process_area_job(job_id: str, bbox: list[float]):
     """Background worker that does the heavy lifting."""
     try:
         jobs[job_id]["status"] = "processing"
         
+        # 1. Environmental Context Extraction
+        center_lon = (bbox[0] + bbox[2]) / 2
+        center_lat = (bbox[1] + bbox[3]) / 2
+        area_ha = get_area_hectares(bbox)
+        season = get_season()
+        location_ctx = get_location_context(center_lat, center_lon)
+        weather_ctx = get_weather_context(center_lat, center_lon)
+        
+        context_data = {
+            "area_hectares": round(area_ha, 2),
+            "season": season,
+            "location": location_ctx,
+            "weather": weather_ctx
+        }
+        
+        # 2. Satellite Data Fetching
         ndvi, ndwi, savi, rgb, img_date = get_planetary_data(bbox)
         stats = analyze_crop_health(ndvi)
         mean_ndwi = np.nanmean(ndwi)
         
         y_text, y_emoji, yield_color = estimate_yield(stats['healthy_pct'], mean_ndwi, temp=None, rain=None)
         
-        suggestion = get_agricultural_recommendation(stats['healthy_pct'], stats['moderate_pct'], stats['stressed_pct'])
+        # 3. Context-Aware Recommendations
+        suggestion = get_agricultural_recommendation(
+            healthy_pct=stats['healthy_pct'], 
+            moderate_pct=stats['moderate_pct'], 
+            stressed_pct=stats['stressed_pct'],
+            context=context_data
+        )
+        
         if mean_ndwi < -0.1:
-            suggestion += " Drought Warning."
+            suggestion += " Satellite moisture index indicates Drought Warning."
         elif mean_ndwi > 0.3:
-            suggestion += " Waterlogging Warning."
+            suggestion += " Satellite moisture index indicates Waterlogging Warning."
             
         maps = generate_maps(ndvi, stats['class_matrix'], rgb, ndwi, savi)
         stats.pop('class_matrix')
@@ -230,7 +296,8 @@ def process_area_job(job_id: str, bbox: list[float]):
             "recommendation": suggestion,
             "maps": maps,
             "image_date": img_date,
-            "mean_ndwi": float(mean_ndwi)
+            "mean_ndwi": float(mean_ndwi),
+            "context": context_data
         }
         jobs[job_id]["status"] = "completed"
     except Exception as e:

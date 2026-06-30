@@ -37,14 +37,54 @@ INDIAN_STATES_AGRI_DATA = {
     }
 }
 
-def get_agricultural_recommendation(healthy_pct, moderate_pct, stressed_pct):
+def get_agricultural_recommendation(healthy_pct, moderate_pct, stressed_pct, context=None):
+    base_rec = ""
     if healthy_pct > 70 and stressed_pct < 10:
-        return "Excellent vegetation health detected. Maintain current irrigation and nutrient management schedules because the crop canopy is highly vigorous."
+        base_rec = "Excellent vegetation health detected. Maintain current irrigation and nutrient management schedules because the crop canopy is highly vigorous."
     elif stressed_pct > 30:
-        return f"CRITICAL ALERT: Over {stressed_pct:.1f}% of the selected area shows severe stress. Immediate intervention is highly recommended to investigate irrigation failure, pest outbreaks, or severe drought conditions in the red zones!"
+        base_rec = f"CRITICAL ALERT: Over {stressed_pct:.1f}% of the selected area shows severe stress. Immediate intervention is highly recommended to investigate irrigation failure, pest outbreaks, or severe drought conditions in the red zones!"
     elif moderate_pct > 50:
-        return f"High proportion of moderate vegetation ({moderate_pct:.1f}%) detected. The crop is surviving but not thriving. Recommend checking soil nutrient profiles, applying targeted fertilizers, or optimizing irrigation to transition these zones into high yield."
+        base_rec = f"High proportion of moderate vegetation ({moderate_pct:.1f}%) detected. The crop is surviving but not thriving. Recommend checking soil nutrient profiles, applying targeted fertilizers, or optimizing irrigation to transition these zones into high yield."
     elif healthy_pct > 40:
-        return f"Moderate crop vitality detected with {stressed_pct:.1f}% stressed pixels. Consider conducting targeted drone/ground surveys in the yellow and red zones to check for localized water stress or nitrogen deficiency."
+        base_rec = f"Moderate crop vitality detected with {stressed_pct:.1f}% stressed pixels. Consider conducting targeted drone/ground surveys in the yellow and red zones to check for localized water stress or nitrogen deficiency."
     else:
-        return f"Low overall vegetation health detected. While severe stress is limited to {stressed_pct:.1f}%, the lack of dense canopy suggests early growth stages, recent harvest, or systemic underperformance. Monitor closely."
+        base_rec = f"Low overall vegetation health detected. While severe stress is limited to {stressed_pct:.1f}%, the lack of dense canopy suggests early growth stages, recent harvest, or systemic underperformance. Monitor closely."
+
+    if not context:
+        return base_rec
+        
+    # Append Environmental Context
+    env_rec = f"\n\n🌍 ENVIRONMENTAL CONTEXT & INSIGHTS:\n"
+    
+    # Area
+    area = context.get("area_hectares", 0)
+    if area > 0:
+        env_rec += f"- Farm Size: {area} Hectares.\n"
+        
+    # Season
+    season = context.get("season", "Unknown")
+    env_rec += f"- Current Season: {season}. Ensure your crop selection matches the seasonal rainfall patterns.\n"
+    
+    # Soil & Region
+    loc = context.get("location", {})
+    state = loc.get("state", "Unknown")
+    agri_data = loc.get("agri_data", None)
+    if agri_data:
+        env_rec += f"- Region ({state}): Identified soil type is {agri_data['soil_type']}. "
+        env_rec += f"Highly suitable for {agri_data['suitable_crops']}.\n"
+    elif state != "Unknown":
+        env_rec += f"- Region: {state}.\n"
+        
+    # Weather
+    weather = context.get("weather", None)
+    if weather:
+        temp = weather.get("temperature_2m", "N/A")
+        hum = weather.get("relative_humidity_2m", "N/A")
+        rain = weather.get("precipitation", 0)
+        env_rec += f"- Live Weather: Temp {temp}°C, Humidity {hum}%. "
+        if rain > 0:
+            env_rec += f"Recent rainfall of {rain}mm detected. Adjust irrigation accordingly."
+        elif hum != "N/A" and hum > 80:
+            env_rec += "High humidity detected. Monitor closely for fungal diseases."
+            
+    return base_rec + env_rec
