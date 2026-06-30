@@ -87,7 +87,7 @@ const Dashboard = ({ results, onReset }) => {
 
       <div id="dashboard-content" style={{ padding: '1rem', background: 'transparent' }}>
         <div style={{ marginBottom: '2rem', textAlign: 'center' }}>
-          <h2 style={{ color: '#fff', fontSize: '1.8rem', marginBottom: '0.5rem' }}>Precision Agriculture Analysis</h2>
+          <h2 style={{ color: '#fff', fontSize: '1.8rem', marginBottom: '0.5rem' }}>SmartAgro Dashboard</h2>
           <p style={{ color: '#94a3b8' }}>Comprehensive satellite insights and AI yield prediction</p>
         </div>
 
