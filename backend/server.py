@@ -147,7 +147,7 @@ async def analyze_local(b04: UploadFile = File(...), b08: UploadFile = File(...)
         maps = generate_maps(ndvi_matrix, stats['class_matrix'])
         stats.pop('class_matrix')
         
-        financials = {"est_revenue": 0, "revenue_at_risk": 0}
+        resource_needs = {"intervention_area": 0, "nitrogen_tons": 0, "water_m3": 0}
         disease_risk = {"risk_score": 0, "label": "Unknown", "warning": "No weather data for local upload"}
         
         return {
@@ -155,7 +155,7 @@ async def analyze_local(b04: UploadFile = File(...), b08: UploadFile = File(...)
             "yield": {"text": y_text, "emoji": y_emoji, "color": yield_color},
             "recommendation": suggestion,
             "maps": maps,
-            "financials": financials,
+            "resource_needs": resource_needs,
             "disease_risk": disease_risk
         }
     except Exception as e:
@@ -517,16 +517,23 @@ def process_area_job(job_id: str, bbox: list[float]):
         
         y_text, y_emoji, yield_color, base_yield = estimate_yield(stats['healthy_pct'], mean_ndwi, temp=None, rain=None)
         
-        # Financial Calculation (Module 3)
-        price_per_mt = 250 # Average market price per Metric Ton
-        total_yield_mt = area_ha * base_yield
-        est_revenue = total_yield_mt * price_per_mt
-        stressed_area_ha = area_ha * (stats['stressed_pct'] / 100)
-        revenue_at_risk = stressed_area_ha * base_yield * price_per_mt
+        # Resource Optimization (Useful Actionable Data)
+        intervention_area_ha = area_ha * ((stats['stressed_pct'] + stats['moderate_pct']) / 100)
         
-        financials = {
-            "est_revenue": round(est_revenue, 2),
-            "revenue_at_risk": round(revenue_at_risk, 2)
+        # Rule of thumb: ~120 kg of Nitrogen per hectare for stressed/moderate recovery
+        nitrogen_needed_kg = intervention_area_ha * 120 
+        nitrogen_tons = nitrogen_needed_kg / 1000
+        
+        # Water deficit calculation based on negative NDWI
+        water_deficit_m3 = 0
+        if mean_ndwi < 0:
+            # approx 100 cubic meters per hectare per -0.1 NDWI deficit
+            water_deficit_m3 = intervention_area_ha * 100 * abs(mean_ndwi) * 10
+            
+        resource_needs = {
+            "intervention_area": round(intervention_area_ha, 1),
+            "nitrogen_tons": round(nitrogen_tons, 1),
+            "water_m3": round(water_deficit_m3, 0)
         }
         
         # Disease Risk Calculation (Module 4)
@@ -577,7 +584,7 @@ def process_area_job(job_id: str, bbox: list[float]):
             "image_date": image_date,
             "mean_ndwi": mean_ndwi,
             "context": context_data,
-            "financials": financials,
+            "resource_needs": resource_needs,
             "disease_risk": disease_risk
         }
         
