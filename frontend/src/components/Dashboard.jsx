@@ -232,10 +232,11 @@ const Dashboard = ({ results, onReset }) => {
         </div>
 
         {/* Bottom Full-Width Horizontal Section: AI Action Plan */}
-        <div className="recommendation-box" style={{ marginTop: '2.5rem', alignItems: 'center' }}>
-          <Info className="recommendation-icon" size={32} />
-          <div style={{ flex: 1 }}>
-            <h4 style={{ color: '#fff', marginBottom: '0.75rem', fontWeight: '700', fontSize: '1.3rem' }}>AI Action Plan</h4>
+        <div className="recommendation-box" style={{ marginTop: '2.5rem', display: 'block', padding: '2rem' }}>
+          <h4 style={{ color: '#fff', marginBottom: '1rem', fontWeight: '700', fontSize: '1.3rem', display: 'flex', alignItems: 'center', gap: '0.75rem' }}>
+            <Info className="recommendation-icon" size={28} /> AI Action Plan
+          </h4>
+          <div style={{ paddingLeft: '0.5rem' }}>
             <p style={{ lineHeight: '1.8', color: '#e2e8f0', fontSize: '1.05rem', whiteSpace: 'pre-wrap' }}>{recommendation}</p>
           </div>
         </div>
