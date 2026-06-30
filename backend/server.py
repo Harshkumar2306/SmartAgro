@@ -270,6 +270,11 @@ def process_area_job(job_id: str, bbox: list[float]):
         center_lon = (bbox[0] + bbox[2]) / 2
         center_lat = (bbox[1] + bbox[3]) / 2
         area_ha = get_area_hectares(bbox)
+        
+        # Security Feature: Prevent OOM crashes from massively oversized bounds
+        if area_ha > 10000:
+            raise ValueError(f"Selected area ({area_ha:.0f} hectares) is too large for the satellite engine. For precision agriculture analysis, please select a farm area under 10,000 hectares.")
+            
         season = get_season()
         location_ctx = get_location_context(center_lat, center_lon)
         weather_ctx = get_weather_context(center_lat, center_lon)
