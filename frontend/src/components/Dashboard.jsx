@@ -1,11 +1,11 @@
 import React, { useState } from 'react';
 import { PieChart, Pie, Cell, ResponsiveContainer, Tooltip as RechartsTooltip, Legend } from 'recharts';
-import { ArrowLeft, Info, Droplets, ThermometerSun, MapPin, Calendar, Sprout, Wind, Map, Download } from 'lucide-react';
+import { ArrowLeft, Info, Droplets, ThermometerSun, MapPin, Calendar, Sprout, Wind, Map, Download, DollarSign, AlertTriangle } from 'lucide-react';
 import { jsPDF } from "jspdf";
 import html2canvas from "html2canvas";
 
 const Dashboard = ({ results, onReset }) => {
-  const { stats, yield: yieldData, recommendation, maps, image_date, mean_ndwi, context } = results;
+  const { stats, yield: yieldData, recommendation, maps, image_date, mean_ndwi, context, financials, disease_risk } = results;
   const [isDownloading, setIsDownloading] = useState(false);
 
   const handleDownloadPDF = async () => {
@@ -195,6 +195,55 @@ const Dashboard = ({ results, onReset }) => {
                     </div>
                   </div>
                 )}
+              </div>
+            )}
+
+            {/* Financial Forecast Widget */}
+            {financials && (
+              <div className="metric-card" style={{ padding: '1.5rem', background: 'linear-gradient(145deg, rgba(16, 185, 129, 0.1) 0%, rgba(30, 41, 59, 0.8) 100%)', border: '1px solid rgba(16, 185, 129, 0.2)' }}>
+                <h3 style={{ fontSize: '1.15rem', marginBottom: '1.25rem', color: '#10b981', display: 'flex', alignItems: 'center', gap: '0.5rem', fontWeight: '600' }}>
+                  <DollarSign size={20} /> Financial Forecast
+                </h3>
+                
+                <div style={{ display: 'flex', flexDirection: 'column', gap: '1rem' }}>
+                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', borderBottom: '1px solid rgba(255,255,255,0.05)', paddingBottom: '0.5rem' }}>
+                    <span style={{ color: '#94a3b8', fontSize: '0.9rem', textTransform: 'uppercase', letterSpacing: '0.5px' }}>Est. Total Revenue</span>
+                    <span style={{ color: '#f8fafc', fontWeight: '700', fontSize: '1.1rem' }}>${financials.est_revenue.toLocaleString()}</span>
+                  </div>
+                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                    <span style={{ color: '#ef4444', fontSize: '0.9rem', textTransform: 'uppercase', letterSpacing: '0.5px' }}>Revenue at Risk (Stress)</span>
+                    <span style={{ color: '#ef4444', fontWeight: '700', fontSize: '1.1rem' }}>-${financials.revenue_at_risk.toLocaleString()}</span>
+                  </div>
+                </div>
+              </div>
+            )}
+
+            {/* Disease Risk Radar */}
+            {disease_risk && (
+              <div className="metric-card" style={{ padding: '1.5rem', background: disease_risk.risk_score > 50 ? 'linear-gradient(145deg, rgba(239, 68, 68, 0.1) 0%, rgba(30, 41, 59, 0.8) 100%)' : 'rgba(30, 41, 59, 0.8)', border: `1px solid ${disease_risk.risk_score > 50 ? 'rgba(239, 68, 68, 0.3)' : 'rgba(255,255,255,0.05)'}` }}>
+                <h3 style={{ fontSize: '1.15rem', marginBottom: '1.25rem', color: disease_risk.risk_score > 50 ? '#ef4444' : '#3b82f6', display: 'flex', alignItems: 'center', gap: '0.5rem', fontWeight: '600' }}>
+                  <AlertTriangle size={20} /> Predictive Disease Radar
+                </h3>
+                
+                <div style={{ display: 'flex', alignItems: 'center', gap: '1rem', marginBottom: '1rem' }}>
+                  <div style={{ 
+                    width: '60px', height: '60px', borderRadius: '50%', 
+                    background: disease_risk.risk_score > 50 ? 'rgba(239, 68, 68, 0.2)' : 'rgba(59, 130, 246, 0.2)',
+                    display: 'flex', alignItems: 'center', justifyContent: 'center',
+                    border: `2px solid ${disease_risk.risk_score > 50 ? '#ef4444' : '#3b82f6'}`,
+                    color: '#fff', fontWeight: 'bold', fontSize: '1.2rem'
+                  }}>
+                    {disease_risk.risk_score}%
+                  </div>
+                  <div>
+                    <div style={{ color: '#f8fafc', fontWeight: '600', fontSize: '1.1rem', marginBottom: '0.25rem' }}>{disease_risk.label} Risk</div>
+                    <div style={{ color: '#94a3b8', fontSize: '0.85rem' }}>Probability of pathogen outbreak</div>
+                  </div>
+                </div>
+                
+                <p style={{ color: '#e2e8f0', fontSize: '0.9rem', lineHeight: '1.5', padding: '0.75rem', background: 'rgba(0,0,0,0.2)', borderRadius: '8px' }}>
+                  {disease_risk.warning}
+                </p>
               </div>
             )}
           </div>

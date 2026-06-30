@@ -31,8 +31,8 @@ def estimate_yield(healthy_percentage, ndwi_mean=None, temp=None, rain=None):
     base_yield = max(0.5, min(base_yield, 8.5))
     
     if base_yield > 6.0:
-        return f"{base_yield:.1f} MT/ha (High)", "🟢", "#4CAF50"
+        return f"{base_yield:.1f} MT/ha (High)", "🟢", "#4CAF50", base_yield
     elif base_yield >= 3.5:
-        return f"{base_yield:.1f} MT/ha (Avg)", "🟡", "#FFC107"
+        return f"{base_yield:.1f} MT/ha (Avg)", "🟡", "#FFC107", base_yield
     else:
-        return f"{base_yield:.1f} MT/ha (Low)", "🔴", "#F44336"
+        return f"{base_yield:.1f} MT/ha (Low)", "🔴", "#F44336", base_yield

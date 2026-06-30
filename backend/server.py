@@ -142,15 +142,21 @@ async def analyze_local(b04: UploadFile = File(...), b08: UploadFile = File(...)
             raise HTTPException(status_code=400, detail="Images must have the same dimensions.")
         ndvi_matrix = calculate_ndvi(red_band, nir_band)
         stats = analyze_crop_health(ndvi_matrix)
-        y_text, y_emoji, yield_color = estimate_yield(stats['healthy_pct'])
+        y_text, y_emoji, yield_color, base_yield = estimate_yield(stats['healthy_pct'])
         suggestion = get_agricultural_recommendation(stats['healthy_pct'], stats['moderate_pct'], stats['stressed_pct'])
         maps = generate_maps(ndvi_matrix, stats['class_matrix'])
         stats.pop('class_matrix')
+        
+        financials = {"est_revenue": 0, "revenue_at_risk": 0}
+        disease_risk = {"risk_score": 0, "label": "Unknown", "warning": "No weather data for local upload"}
+        
         return {
             "stats": stats,
             "yield": {"text": y_text, "emoji": y_emoji, "color": yield_color},
             "recommendation": suggestion,
-            "maps": maps
+            "maps": maps,
+            "financials": financials,
+            "disease_risk": disease_risk
         }
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
@@ -496,7 +502,42 @@ def process_area_job(job_id: str, bbox: list[float]):
         image_date = payload['image_date']
         maps = payload['maps']
         
-        y_text, y_emoji, yield_color = estimate_yield(stats['healthy_pct'], mean_ndwi, temp=None, rain=None)
+        y_text, y_emoji, yield_color, base_yield = estimate_yield(stats['healthy_pct'], mean_ndwi, temp=None, rain=None)
+        
+        # Financial Calculation (Module 3)
+        price_per_mt = 250 # Average market price per Metric Ton
+        total_yield_mt = area_ha * base_yield
+        est_revenue = total_yield_mt * price_per_mt
+        stressed_area_ha = area_ha * (stats['stressed_pct'] / 100)
+        revenue_at_risk = stressed_area_ha * base_yield * price_per_mt
+        
+        financials = {
+            "est_revenue": round(est_revenue, 2),
+            "revenue_at_risk": round(revenue_at_risk, 2)
+        }
+        
+        # Disease Risk Calculation (Module 4)
+        risk_score = 15
+        warning = "Weather conditions are currently unfavorable for most pathogens."
+        label = "Low"
+        
+        if weather_ctx:
+            temp = weather_ctx.get("temperature_2m", 25)
+            hum = weather_ctx.get("relative_humidity_2m", 50)
+            if hum > 80 and temp > 22 and mean_ndwi > 0.1:
+                risk_score = 85
+                label = "Critical"
+                warning = "High humidity & temperature creates prime conditions for fungal blight."
+            elif hum > 70 or mean_ndwi > 0.2:
+                risk_score = 45
+                label = "Moderate"
+                warning = "Elevated moisture increases mildew risk."
+        
+        disease_risk = {
+            "risk_score": risk_score,
+            "label": label,
+            "warning": warning
+        }
         
         suggestion = get_agricultural_recommendation(
             healthy_pct=stats['healthy_pct'], 
@@ -517,7 +558,9 @@ def process_area_job(job_id: str, bbox: list[float]):
             "maps": maps,
             "image_date": image_date,
             "mean_ndwi": mean_ndwi,
-            "context": context_data
+            "context": context_data,
+            "financials": financials,
+            "disease_risk": disease_risk
         }
         
         set_job(job_id, {"status": "completed", "data": result})
