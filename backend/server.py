@@ -144,7 +144,7 @@ def get_planetary_data(bbox):
         datetime=time_range,
         query={"eo:cloud_cover": {"lt": 20}},
         sortby=[{"field": "eo:cloud_cover", "direction": "asc"}],
-        max_items=3, # Get the best 3 images as requested
+        max_items=1, # Reduced to 1 to aggressively save memory on Render Free Tier
     )
 
     all_items = list(search.items())
@@ -153,13 +153,15 @@ def get_planetary_data(bbox):
 
     image_date = all_items[0].datetime.strftime("%Y-%m-%d") if all_items[0].datetime else "Unknown"
     
-    # Restored high resolution (256x256) for optimal quality
-    target_size = 256
+    # Reduced resolution to 128x128 to prevent OOM Kills on 512MB RAM
+    target_size = 128
     red_canvas = np.zeros((target_size, target_size), dtype=np.float32)
     nir_canvas = np.zeros((target_size, target_size), dtype=np.float32)
     green_canvas = np.zeros((target_size, target_size), dtype=np.float32)
     blue_canvas = np.zeros((target_size, target_size), dtype=np.float32)
     bbox_4326 = [min_lon, min_lat, max_lon, max_lat]
+    
+    import gc
 
     def process_band(item, band_name, canvas):
         if band_name not in item.assets: return 0.0
@@ -176,7 +178,10 @@ def get_planetary_data(bbox):
                 fill_mask = (canvas == 0) & (data > 0)
                 canvas[fill_mask] = data[fill_mask]
                 return np.sum(canvas > 0) / canvas.size
-        except Exception: return 0.0
+        except Exception: 
+            return 0.0
+        finally:
+            gc.collect()
 
     for item in all_items:
         # Process sequentially. Threading on 0.1 CPU adds overhead without speed gains.

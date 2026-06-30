@@ -118,6 +118,9 @@ const MapSelector = ({ setResults, setLoading, loading }) => {
       const jobId = response.data.job_id;
       
       // 2. Poll the status every 3 seconds
+      let retryCount = 0;
+      const MAX_RETRIES = 5;
+
       const checkStatus = async () => {
         try {
            const statusRes = await axios.get(`${API_URL}/api/status/${jobId}`);
@@ -135,8 +138,23 @@ const MapSelector = ({ setResults, setLoading, loading }) => {
            }
         } catch (err) {
            console.error(err);
-           alert("Status check failed. " + err.message);
-           setLoading(false);
+           
+           // If it's a 404, the server restarted and lost the memory job
+           if (err.response && err.response.status === 404) {
+              alert("The satellite imagery was too large and the server had to reset. Please try drawing a smaller bounding box.");
+              setLoading(false);
+              return;
+           }
+           
+           // If it's a Network Error (502 / Server restarting / Dropped connection)
+           if (retryCount < MAX_RETRIES) {
+              retryCount++;
+              setLoadingMessage(`Connection unstable, retrying... (${retryCount}/${MAX_RETRIES})`);
+              setTimeout(checkStatus, 3000);
+           } else {
+              alert("Status check failed after multiple retries. The server might be overloaded.");
+              setLoading(false);
+           }
         }
       };
       
