@@ -14,7 +14,9 @@ jobs:
           fetch-depth: 0
           lfs: true
       - name: Push to Hugging Face
-        uses: huggingface/spaces-github-action@main
+        uses: huggingface/hub-sync@v0.1.0
         with:
-          space: harsh0o23/smart-agro-api
-          token: ${{ secrets.HF_TOKEN }}
+          github_repo_id: ${{ github.repository }}
+          huggingface_repo_id: harsh0o23/smart-agro-api
+          hf_token: ${{ secrets.HF_TOKEN }}
+          repo_type: space
