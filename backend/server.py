@@ -144,7 +144,7 @@ def get_planetary_data(bbox):
         datetime=time_range,
         query={"eo:cloud_cover": {"lt": 20}},
         sortby=[{"field": "eo:cloud_cover", "direction": "asc"}],
-        max_items=1, # Reduced to 1 to aggressively save memory on Render Free Tier
+        max_items=3, # Restored for Hugging Face 16GB RAM limit
     )
 
     all_items = list(search.items())
@@ -167,15 +167,13 @@ def get_planetary_data(bbox):
         if band_name not in item.assets: return 0.0
         href = item.assets[band_name].href
         try:
-            # STRICT GDAL MEMORY THROTTLING (Limits background caching to ~100MB total)
+            # Memory unlocked for Hugging Face Spaces (16GB RAM)
             env = rasterio.Env(
                 GDAL_DISABLE_READDIR_ON_OPEN="EMPTY_DIR", 
                 CPL_VSIL_CURL_ALLOWED_EXTENSIONS="tif,tiff", 
                 VSI_CACHE=True, 
                 GDAL_HTTP_MULTIMAC="YES", 
-                GDAL_HTTP_MERGE_CONSECUTIVE_READS="YES",
-                GDAL_CACHEMAX="64",          # Limit block cache to 64MB
-                VSI_CACHE_SIZE="50000000"    # Limit network cache to 50MB
+                GDAL_HTTP_MERGE_CONSECUTIVE_READS="YES"
             )
             with env, rasterio.open(href) as src:
                 src_bounds = transform_bounds("EPSG:4326", src.crs, *bbox_4326)
