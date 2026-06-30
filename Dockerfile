@@ -1,9 +1,8 @@
 FROM python:3.10-slim
 
-# Install system dependencies required by Rasterio/GDAL
+# Do NOT install system gdal-bin/libgdal-dev — it conflicts with rasterio's bundled GDAL
+# and causes segfaults. Rasterio wheels ship their own libgdal.
 RUN apt-get update && apt-get install -y \
-    gdal-bin \
-    libgdal-dev \
     gcc \
     g++ \
     && rm -rf /var/lib/apt/lists/*
@@ -23,5 +22,5 @@ COPY backend/ ./backend/
 ENV PORT=7860
 EXPOSE 7860
 
-# Start the FastAPI server using uvicorn
-CMD ["uvicorn", "backend.server:app", "--host", "0.0.0.0", "--port", "7860"]
+# Start the FastAPI server using uvicorn with 2 workers for resilience
+CMD ["uvicorn", "backend.server:app", "--host", "0.0.0.0", "--port", "7860", "--workers", "2", "--timeout-keep-alive", "120"]
