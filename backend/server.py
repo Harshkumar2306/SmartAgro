@@ -172,8 +172,8 @@ def get_planetary_data(bbox):
                 GDAL_DISABLE_READDIR_ON_OPEN="EMPTY_DIR", 
                 CPL_VSIL_CURL_ALLOWED_EXTENSIONS="tif,tiff", 
                 VSI_CACHE=True, 
-                VSI_CACHE_SIZE="500000000", # 500 MB max for curl cache
-                GDAL_CACHEMAX="1024", # 1 GB max block cache
+                VSI_CACHE_SIZE=500000000, # 500 MB max for curl cache
+                GDAL_CACHEMAX=1024, # 1 GB max block cache
                 GDAL_HTTP_MULTIMAC="YES", 
                 GDAL_HTTP_MERGE_CONSECUTIVE_READS="YES"
             )
