@@ -322,24 +322,37 @@ def main():
         if not all_items:
             raise ValueError("No cloud-free Sentinel-2 imagery found for this area in the last 120 days.")
 
-        item = all_items[0]
-        image_date = item.datetime.strftime("%Y-%m-%d") if item.datetime else "Unknown"
+        best_item = all_items[0]
+        image_date = best_item.datetime.strftime("%Y-%m-%d") if best_item.datetime else "Unknown"
+        
+        # Search again for ALL items on this exact date to mosaic tile boundaries
+        search_mosaic = catalog.search(
+            collections=["sentinel-2-l2a"],
+            bbox=[min_lon, min_lat, max_lon, max_lat],
+            datetime=f"{image_date}T00:00:00Z/{image_date}T23:59:59Z"
+        )
+        mosaic_items = list(search_mosaic.items())
+        if not mosaic_items:
+            mosaic_items = [best_item]
         
         target_size = 256
         bbox_4326 = [min_lon, min_lat, max_lon, max_lat]
         
         def read_band(band_name):
-            if band_name not in item.assets:
-                return np.zeros((target_size, target_size), dtype=np.float32)
-            href = item.assets[band_name].href
-            with rasterio.Env(GDAL_DISABLE_READDIR_ON_OPEN="EMPTY_DIR", CPL_VSIL_CURL_ALLOWED_EXTENSIONS="tif,tiff"):
-                with rasterio.open(href) as src:
-                    src_bounds = transform_bounds("EPSG:4326", src.crs, *bbox_4326)
-                    window = from_bounds(*src_bounds, transform=src.transform)
-                    data = src.read(1, window=window, boundless=True, fill_value=0, 
-                                   out_shape=(target_size, target_size),
-                                   resampling=Resampling.nearest).astype(np.float32)
-                    return data
+            combined_data = np.zeros((target_size, target_size), dtype=np.float32)
+            for item in mosaic_items:
+                if band_name not in item.assets:
+                    continue
+                href = item.assets[band_name].href
+                with rasterio.Env(GDAL_DISABLE_READDIR_ON_OPEN="EMPTY_DIR", CPL_VSIL_CURL_ALLOWED_EXTENSIONS="tif,tiff"):
+                    with rasterio.open(href) as src:
+                        src_bounds = transform_bounds("EPSG:4326", src.crs, *bbox_4326)
+                        window = from_bounds(*src_bounds, transform=src.transform)
+                        data = src.read(1, window=window, boundless=True, fill_value=0, 
+                                       out_shape=(target_size, target_size),
+                                       resampling=Resampling.nearest).astype(np.float32)
+                        combined_data = np.maximum(combined_data, data)
+            return combined_data
 
         red = read_band("B04")
         nir = read_band("B08")
