@@ -153,8 +153,8 @@ def get_planetary_data(bbox):
 
     image_date = all_items[0].datetime.strftime("%Y-%m-%d") if all_items[0].datetime else "Unknown"
     
-    # Reduced resolution to 128x128 to prevent OOM Kills on 512MB RAM
-    target_size = 128
+    # High-Resolution (256x256) restored!
+    target_size = 256
     red_canvas = np.zeros((target_size, target_size), dtype=np.float32)
     nir_canvas = np.zeros((target_size, target_size), dtype=np.float32)
     green_canvas = np.zeros((target_size, target_size), dtype=np.float32)
@@ -167,13 +167,22 @@ def get_planetary_data(bbox):
         if band_name not in item.assets: return 0.0
         href = item.assets[band_name].href
         try:
-            env = rasterio.Env(GDAL_DISABLE_READDIR_ON_OPEN="EMPTY_DIR", CPL_VSIL_CURL_ALLOWED_EXTENSIONS="tif,tiff", VSI_CACHE=True, GDAL_HTTP_MULTIMAC="YES", GDAL_HTTP_MERGE_CONSECUTIVE_READS="YES")
+            # STRICT GDAL MEMORY THROTTLING (Limits background caching to ~100MB total)
+            env = rasterio.Env(
+                GDAL_DISABLE_READDIR_ON_OPEN="EMPTY_DIR", 
+                CPL_VSIL_CURL_ALLOWED_EXTENSIONS="tif,tiff", 
+                VSI_CACHE=True, 
+                GDAL_HTTP_MULTIMAC="YES", 
+                GDAL_HTTP_MERGE_CONSECUTIVE_READS="YES",
+                GDAL_CACHEMAX="64",          # Limit block cache to 64MB
+                VSI_CACHE_SIZE="50000000"    # Limit network cache to 50MB
+            )
             with env, rasterio.open(href) as src:
                 src_bounds = transform_bounds("EPSG:4326", src.crs, *bbox_4326)
                 window = from_bounds(*src_bounds, transform=src.transform)
                 from rasterio.enums import Resampling
-                # Nearest neighbor resampling is vastly faster on 0.1 CPU instances
-                data = src.read(1, window=window, boundless=True, fill_value=0, out_shape=(target_size, target_size), resampling=Resampling.nearest).astype(np.float32)
+                # Professional interpolation (bilinear) instead of nearest
+                data = src.read(1, window=window, boundless=True, fill_value=0, out_shape=(target_size, target_size), resampling=Resampling.bilinear).astype(np.float32)
                 if data.shape[0] == 0 or data.shape[1] == 0: return 0.0
                 fill_mask = (canvas == 0) & (data > 0)
                 canvas[fill_mask] = data[fill_mask]
