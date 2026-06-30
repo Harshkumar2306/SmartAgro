@@ -17,10 +17,10 @@ import concurrent.futures
 from rasterio.warp import transform_bounds
 from rasterio.windows import from_bounds
 
-from ndvi import calculate_ndvi
-from stress_detection import analyze_crop_health
-from yield_prediction import estimate_yield
-from recommendations import get_agricultural_recommendation, INDIAN_STATES_AGRI_DATA
+from backend.ndvi import calculate_ndvi
+from backend.stress_detection import analyze_crop_health
+from backend.yield_prediction import estimate_yield
+from backend.recommendations import get_agricultural_recommendation, INDIAN_STATES_AGRI_DATA
 # from report_generator import create_pdf_report # (Optional for later)
 
 app = FastAPI(title="Smart Agri API")
