@@ -2,14 +2,15 @@ import React, { useState, useEffect } from 'react';
 import axios from 'axios';
 import { MapContainer, TileLayer, useMap } from 'react-leaflet';
 import L from 'leaflet';
-import 'leaflet-draw';
+import '@geoman-io/leaflet-geoman-free';
+import '@geoman-io/leaflet-geoman-free/dist/leaflet-geoman.css';
 import { GeoSearchControl, OpenStreetMapProvider } from 'leaflet-geosearch';
 import 'leaflet/dist/leaflet.css';
-import 'leaflet-draw/dist/leaflet.draw.css';
 import 'leaflet-geosearch/dist/geosearch.css';
 import { Loader2, Search } from 'lucide-react';
 
-const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:8000';
+// Fallback to the known Render URL if environment variable is missing
+const API_URL = import.meta.env.VITE_API_URL || 'https://smartagro0.onrender.com';
 
 // Fix for missing default icon in Leaflet
 delete L.Icon.Default.prototype._getIconUrl;
@@ -37,38 +38,31 @@ const AdvancedMapControls = ({ setBbox }) => {
     });
     map.addControl(searchControl);
 
-    // 2. Setup Drawing Control
-    const drawnItems = new L.FeatureGroup();
-    map.addLayer(drawnItems);
-    
-    const drawControl = new L.Control.Draw({
-      edit: {
-        featureGroup: drawnItems,
-        remove: true
-      },
-      draw: {
-        polyline: false,
-        polygon: {
-          allowIntersection: false,
-          drawError: { color: '#e1e100', message: '<strong>Oh snap!</strong> you can\'t draw that!' },
-          shapeOptions: { color: '#10b981', fillOpacity: 0.3 }
-        },
-        circle: false,
-        marker: false,
-        circlemarker: false,
-        rectangle: {
-          shapeOptions: { color: '#3b82f6', fillOpacity: 0.3 }
-        }
-      }
+    // 2. Setup Geoman Drawing Control (Much more reliable than leaflet-draw)
+    map.pm.addControls({
+      position: 'topleft',
+      drawMarker: false,
+      drawCircleMarker: false,
+      drawPolyline: false,
+      drawPolygon: true,
+      drawRectangle: true,
+      drawCircle: false,
+      drawText: false,
+      editMode: true,
+      dragMode: false,
+      cutPolygon: false,
+      removalMode: true,
     });
-    
-    map.addControl(drawControl);
-    
-    map.on(L.Draw.Event.CREATED, (e) => {
-      // Clear previous shapes so we only select one area at a time
-      drawnItems.clearLayers();
+
+    // Handle creation
+    map.on('pm:create', (e) => {
+      // Clear other layers to keep only one bounding box
+      map.eachLayer((layer) => {
+        if (layer.pm && layer !== e.layer && layer._path) {
+          layer.remove();
+        }
+      });
       
-      drawnItems.addLayer(e.layer);
       const bounds = e.layer.getBounds();
       const _bbox = [
         bounds.getWest(),
@@ -77,16 +71,33 @@ const AdvancedMapControls = ({ setBbox }) => {
         bounds.getNorth()
       ];
       setBbox(_bbox);
+      
+      // Listen for edits on this specific layer
+      e.layer.on('pm:edit', () => {
+        const newBounds = e.layer.getBounds();
+        setBbox([
+          newBounds.getWest(),
+          newBounds.getSouth(),
+          newBounds.getEast(),
+          newBounds.getNorth()
+        ]);
+      });
     });
-
-    map.on(L.Draw.Event.DELETED, () => {
+    
+    // Handle deletion
+    map.on('pm:remove', () => {
       setBbox(null);
     });
 
     return () => {
       map.removeControl(searchControl);
-      map.removeControl(drawControl);
-      map.removeLayer(drawnItems);
+      map.pm.removeControls();
+      // Remove all drawn shapes on unmount
+      map.eachLayer((layer) => {
+        if (layer.pm && layer._path) {
+          layer.remove();
+        }
+      });
     };
   }, [map, setBbox]);
 
@@ -100,11 +111,18 @@ const MapSelector = ({ setResults, setLoading, loading }) => {
     if (!bbox) return;
     setLoading(true);
     try {
-      const response = await axios.post(`${API_URL}/api/analyze-area`, { bbox });
+      // Adding a longer timeout because satellite data fetching can take up to 60 seconds
+      const response = await axios.post(`${API_URL}/api/analyze-area`, { bbox }, { timeout: 120000 });
       setResults(response.data);
     } catch (error) {
       console.error(error);
-      alert('Error analyzing area: ' + (error.response?.data?.detail || error.message));
+      let errorMsg = error.message;
+      if (error.response?.data?.detail) {
+        errorMsg = error.response.data.detail;
+      } else if (error.code === 'ECONNABORTED') {
+        errorMsg = "Request timed out. The area might be too large or the server is waking up. Try a smaller area.";
+      }
+      alert('Error analyzing area: ' + errorMsg);
     } finally {
       setLoading(false);
     }
@@ -114,12 +132,10 @@ const MapSelector = ({ setResults, setLoading, loading }) => {
     <div className="map-selector-container">
       <div className="map-wrapper" style={{ position: 'relative' }}>
         <MapContainer center={[20.5937, 78.9629]} zoom={5} style={{ height: '500px', width: '100%', borderRadius: '16px', zIndex: 1 }}>
-          {/* Esri World Imagery (Realistic Satellite Base Map) */}
           <TileLayer
             url="https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}"
             attribution="Tiles &copy; Esri &mdash; Source: Esri, i-cubed, USDA, USGS, AEX, GeoEye, Getmapping, Aerogrid, IGN, IGP, UPR-EGP, and the GIS User Community"
           />
-          {/* Optional Overlay for Labels */}
           <TileLayer
             url="https://server.arcgisonline.com/ArcGIS/rest/services/Reference/World_Boundaries_and_Places/MapServer/tile/{z}/{y}/{x}"
             attribution=""
@@ -127,7 +143,6 @@ const MapSelector = ({ setResults, setLoading, loading }) => {
           <AdvancedMapControls setBbox={setBbox} />
         </MapContainer>
 
-        {/* Floating Action Panel Over Map */}
         <div className="floating-panel">
           <h3 style={{ marginBottom: '1rem', display: 'flex', alignItems: 'center', gap: '0.5rem', fontSize: '1.1rem' }}>
             <Search size={18} color="#3b82f6" /> 
@@ -161,7 +176,6 @@ const MapSelector = ({ setResults, setLoading, loading }) => {
         </div>
       </div>
       
-      {/* Enhanced Full-Screen Loading Overlay */}
       {loading && (
         <div className="loading-overlay">
           <div className="loading-content">
