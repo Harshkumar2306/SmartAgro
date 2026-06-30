@@ -143,7 +143,7 @@ def get_planetary_data(bbox):
         datetime=time_range,
         query={"eo:cloud_cover": {"lt": 20}},
         sortby=[{"field": "eo:cloud_cover", "direction": "asc"}],
-        max_items=1, # Limit to 1 to drastically reduce processing time on 0.1 CPU
+        max_items=3, # Get the best 3 images as requested
     )
 
     all_items = list(search.items())
@@ -152,8 +152,8 @@ def get_planetary_data(bbox):
 
     image_date = all_items[0].datetime.strftime("%Y-%m-%d") if all_items[0].datetime else "Unknown"
     
-    # Reduced resolution (128x128 instead of 256x256) to make it 4x faster and use 4x less memory
-    target_size = 128
+    # Restored high resolution (256x256) for optimal quality
+    target_size = 256
     red_canvas = np.zeros((target_size, target_size), dtype=np.float32)
     nir_canvas = np.zeros((target_size, target_size), dtype=np.float32)
     green_canvas = np.zeros((target_size, target_size), dtype=np.float32)
