@@ -1,6 +1,6 @@
-streamlit
-folium
-streamlit-folium
+fastapi
+uvicorn
+python-multipart
 numpy
 matplotlib
 requests

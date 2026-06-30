@@ -1,0 +1,236 @@
+:root {
+  --bg-color: #0f172a;
+  --panel-bg: rgba(30, 41, 59, 0.7);
+  --text-primary: #f8fafc;
+  --text-secondary: #94a3b8;
+  --accent: #10b981;
+  --accent-hover: #059669;
+  --border-color: rgba(255, 255, 255, 0.1);
+  --font-family: 'Inter', system-ui, sans-serif;
+}
+
+* {
+  box-sizing: border-box;
+  margin: 0;
+  padding: 0;
+}
+
+body {
+  background-color: var(--bg-color);
+  color: var(--text-primary);
+  font-family: var(--font-family);
+  -webkit-font-smoothing: antialiased;
+  min-height: 100vh;
+  background-image: 
+    radial-gradient(circle at 15% 50%, rgba(16, 185, 129, 0.15), transparent 25%),
+    radial-gradient(circle at 85% 30%, rgba(59, 130, 246, 0.15), transparent 25%);
+}
+
+.app-container {
+  max-width: 1400px;
+  margin: 0 auto;
+  padding: 2rem;
+}
+
+header {
+  text-align: center;
+  margin-bottom: 3rem;
+}
+
+h1 {
+  font-size: 2.5rem;
+  font-weight: 800;
+  background: linear-gradient(135deg, #34d399 0%, #3b82f6 100%);
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+  margin-bottom: 0.5rem;
+}
+
+.subtitle {
+  color: var(--text-secondary);
+  font-size: 1.1rem;
+}
+
+/* Glassmorphism Panels */
+.glass-panel {
+  background: var(--panel-bg);
+  backdrop-filter: blur(12px);
+  -webkit-backdrop-filter: blur(12px);
+  border: 1px solid var(--border-color);
+  border-radius: 16px;
+  padding: 2rem;
+  box-shadow: 0 10px 30px -10px rgba(0, 0, 0, 0.5);
+  transition: transform 0.3s ease, box-shadow 0.3s ease;
+}
+
+.glass-panel:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 20px 40px -10px rgba(0, 0, 0, 0.6);
+}
+
+/* Tabs */
+.tabs {
+  display: flex;
+  justify-content: center;
+  gap: 1rem;
+  margin-bottom: 2rem;
+}
+
+.tab-btn {
+  background: rgba(255, 255, 255, 0.05);
+  border: 1px solid var(--border-color);
+  color: var(--text-secondary);
+  padding: 0.75rem 1.5rem;
+  border-radius: 8px;
+  cursor: pointer;
+  font-size: 1rem;
+  font-weight: 600;
+  transition: all 0.2s ease;
+}
+
+.tab-btn:hover {
+  background: rgba(255, 255, 255, 0.1);
+  color: var(--text-primary);
+}
+
+.tab-btn.active {
+  background: var(--accent);
+  color: white;
+  border-color: var(--accent);
+}
+
+/* Buttons */
+.primary-btn {
+  background: var(--accent);
+  color: white;
+  border: none;
+  padding: 0.75rem 2rem;
+  border-radius: 8px;
+  font-size: 1.1rem;
+  font-weight: bold;
+  cursor: pointer;
+  transition: all 0.2s ease;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.5rem;
+  width: 100%;
+  margin-top: 1.5rem;
+}
+
+.primary-btn:hover {
+  background: var(--accent-hover);
+  transform: translateY(-1px);
+  box-shadow: 0 4px 12px rgba(16, 185, 129, 0.3);
+}
+
+.primary-btn:disabled {
+  background: #475569;
+  cursor: not-allowed;
+  transform: none;
+  box-shadow: none;
+}
+
+/* Upload Area */
+.upload-zone {
+  border: 2px dashed var(--border-color);
+  border-radius: 12px;
+  padding: 3rem 2rem;
+  text-align: center;
+  cursor: pointer;
+  transition: all 0.2s ease;
+  background: rgba(0, 0, 0, 0.2);
+}
+
+.upload-zone:hover, .upload-zone.drag-active {
+  border-color: var(--accent);
+  background: rgba(16, 185, 129, 0.05);
+}
+
+.upload-icon {
+  color: var(--accent);
+  margin-bottom: 1rem;
+}
+
+/* Dashboard Metrics */
+.metrics-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+  gap: 1.5rem;
+  margin-bottom: 2rem;
+}
+
+.metric-card {
+  background: rgba(255, 255, 255, 0.03);
+  border: 1px solid var(--border-color);
+  border-radius: 12px;
+  padding: 1.5rem;
+  text-align: center;
+}
+
+.metric-title {
+  color: var(--text-secondary);
+  font-size: 0.9rem;
+  text-transform: uppercase;
+  letter-spacing: 1px;
+  margin-bottom: 0.5rem;
+}
+
+.metric-value {
+  font-size: 2rem;
+  font-weight: 800;
+}
+
+/* Maps Grid */
+.maps-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
+  gap: 2rem;
+  margin-top: 2rem;
+}
+
+.map-card {
+  border-radius: 12px;
+  overflow: hidden;
+  border: 1px solid var(--border-color);
+  background: rgba(0, 0, 0, 0.3);
+}
+
+.map-card h3 {
+  padding: 1rem;
+  background: rgba(255, 255, 255, 0.05);
+  border-bottom: 1px solid var(--border-color);
+  font-size: 1.1rem;
+}
+
+.map-image {
+  width: 100%;
+  height: auto;
+  display: block;
+}
+
+/* Recommendation Box */
+.recommendation-box {
+  margin-top: 2rem;
+  padding: 1.5rem;
+  border-radius: 12px;
+  background: rgba(59, 130, 246, 0.1);
+  border: 1px solid rgba(59, 130, 246, 0.3);
+  display: flex;
+  gap: 1rem;
+  align-items: flex-start;
+}
+
+.recommendation-icon {
+  color: #3b82f6;
+  flex-shrink: 0;
+}
+
+/* Loading Spinner */
+.spinner {
+  animation: spin 1s linear infinite;
+}
+@keyframes spin {
+  from { transform: rotate(0deg); }
+  to { transform: rotate(360deg); }
+}
