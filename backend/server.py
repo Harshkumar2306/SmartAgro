@@ -546,8 +546,13 @@ def process_area_job(job_id: str, bbox: list[float]):
             context=context_data
         )
         
+        rain = context_data.get("weather", {}).get("precipitation", 0) if context_data.get("weather") else 0
+        
         if mean_ndwi < -0.1:
-            suggestion += "\n• Moisture Alert: Satellite moisture index indicates a Drought Warning. Immediate hydration strategies are recommended."
+            if rain > 0:
+                suggestion += f"\n• Moisture Alert: Historical satellite data indicates drought conditions, but live weather shows recent rainfall ({rain}mm). Evaluate ground conditions before applying heavy irrigation."
+            else:
+                suggestion += "\n• Moisture Alert: Satellite moisture index indicates a Drought Warning. Immediate hydration strategies are recommended."
         elif mean_ndwi > 0.3:
             suggestion += "\n• Moisture Alert: Satellite moisture index indicates a Waterlogging Warning. Drainage checks are recommended."
             
