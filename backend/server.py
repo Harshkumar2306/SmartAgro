@@ -272,8 +272,8 @@ def process_area_job(job_id: str, bbox: list[float]):
         area_ha = get_area_hectares(bbox)
         
         # Security Feature: Prevent OOM crashes from massively oversized bounds
-        if area_ha > 10000:
-            raise ValueError(f"Selected area ({area_ha:.0f} hectares) is too large for the satellite engine. For precision agriculture analysis, please select a farm area under 10,000 hectares.")
+        if area_ha > 100000:
+            raise ValueError(f"Selected area ({area_ha:.0f} hectares) is too large for the satellite engine. For precision agriculture analysis, please select a farm area under 100,000 hectares.")
             
         season = get_season()
         location_ctx = get_location_context(center_lat, center_lon)
