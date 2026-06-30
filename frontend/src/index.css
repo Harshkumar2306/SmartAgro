@@ -21,6 +21,7 @@ body {
   font-family: var(--font-family);
   -webkit-font-smoothing: antialiased;
   min-height: 100vh;
+  overflow-x: hidden;
   background-image: 
     radial-gradient(circle at 15% 50%, rgba(16, 185, 129, 0.15), transparent 25%),
     radial-gradient(circle at 85% 30%, rgba(59, 130, 246, 0.15), transparent 25%);
