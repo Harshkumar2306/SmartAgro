@@ -173,7 +173,7 @@ const MapSelector = ({ setResults, setLoading, loading }) => {
            notFoundCount = 0;
            
            if (status === 'completed') {
-               setResults(statusRes.data.data);
+               setResults({ ...statusRes.data.data, bbox });
                setLoading(false);
            } else if (status === 'error') {
                alert('Analysis error: ' + statusRes.data.detail);

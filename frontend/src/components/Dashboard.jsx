@@ -3,9 +3,10 @@ import { PieChart, Pie, Cell, ResponsiveContainer, Tooltip as RechartsTooltip, L
 import { ArrowLeft, Info, Droplets, ThermometerSun, MapPin, Calendar, Sprout, Wind, Map, Download, AlertTriangle, Truck } from 'lucide-react';
 import { jsPDF } from "jspdf";
 import html2canvas from "html2canvas";
+import ForecastStrip from './ForecastStrip';
 
 const Dashboard = ({ results, onReset }) => {
-  const { stats, yield: yieldData, recommendation, maps, image_date, mean_ndwi, context, resource_needs, disease_risk } = results;
+  const { stats, yield: yieldData, recommendation, maps, image_date, mean_ndwi, context, resource_needs, disease_risk, bbox } = results;
   const [isDownloading, setIsDownloading] = useState(false);
 
   const handleDownloadPDF = async () => {
@@ -197,6 +198,9 @@ const Dashboard = ({ results, onReset }) => {
                 )}
               </div>
             )}
+
+            {/* Live 7-Day Weather Forecast for the analyzed farm */}
+            {bbox && <ForecastStrip bbox={bbox} />}
 
             {/* Resource Optimization Widget */}
             {resource_needs && (

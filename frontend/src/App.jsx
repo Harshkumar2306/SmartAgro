@@ -1,9 +1,10 @@
 import React, { useState } from 'react';
 import './index.css';
-import { Leaf, Map, Upload } from 'lucide-react';
+import { Leaf, Map, Upload, CloudSun } from 'lucide-react';
 import MapSelector from './components/MapSelector';
 import LocalUploader from './components/LocalUploader';
 import Dashboard from './components/Dashboard';
+import LiveWeather from './components/LiveWeather';
 
 function App() {
   const [activeTab, setActiveTab] = useState('map');
@@ -33,13 +34,22 @@ function App() {
               <Upload size={18} style={{ display: 'inline', marginRight: '8px', verticalAlign: 'text-bottom' }} />
               Upload GeoTIFFs
             </button>
+            <button 
+              className={`tab-btn ${activeTab === 'weather' ? 'active' : ''}`}
+              onClick={() => setActiveTab('weather')}
+            >
+              <CloudSun size={18} style={{ display: 'inline', marginRight: '8px', verticalAlign: 'text-bottom' }} />
+              Live Weather
+            </button>
           </div>
 
-          {activeTab === 'map' ? (
+          {activeTab === 'map' && (
             <MapSelector setResults={setResults} setLoading={setLoading} loading={loading} />
-          ) : (
+          )}
+          {activeTab === 'upload' && (
             <LocalUploader setResults={setResults} setLoading={setLoading} loading={loading} />
           )}
+          {activeTab === 'weather' && <LiveWeather />}
         </div>
       ) : (
         <Dashboard results={results} onReset={() => setResults(null)} />
