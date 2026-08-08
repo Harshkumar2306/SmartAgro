@@ -796,3 +796,15 @@ button:focus-visible,input:focus-visible {
 
 }
 
+@media print {
+  .app-header { display: none !important; }
+  .dashboard-top button { display: none !important; }
+  .workspace { padding: 0 !important; margin: 0 !important; background: white !important; }
+  .dashboard { box-shadow: none; border: none; }
+  body { background: white !important; -webkit-print-color-adjust: exact; print-color-adjust: exact; }
+  .dashboard-layout { display: block !important; }
+  .side-column { margin-top: 25px; }
+  .map-grid { page-break-inside: avoid; }
+  .data-card { page-break-inside: avoid; }
+}
+

@@ -1,5 +1,5 @@
 import { Cell, Legend, Pie, PieChart, ResponsiveContainer, Tooltip } from 'recharts';
-import { AlertTriangle, ArrowLeft, CheckCircle2, Eye, Info, Map, Satellite, Sprout } from 'lucide-react';
+import { AlertTriangle, ArrowLeft, CheckCircle2, Eye, Info, Map, Satellite, Sprout, Download } from 'lucide-react';
 
 const number = (value, digits = 1) => Number.isFinite(Number(value)) ? Number(value).toFixed(digits) : '—';
 const pct = (value) => `${number(value)}%`;
@@ -19,7 +19,13 @@ export default function Dashboard({ results, onReset }) {
     ['ndwi_map', 'NDWI context', 'Canopy/water-index context, not an irrigation volume.'],
   ];
   return <div className="dashboard">
-    <div className="dashboard-top"><button className="back-button" onClick={onReset}><ArrowLeft size={17} /> New analysis</button><span className="report-label">Field screening report</span></div>
+    <div className="dashboard-top">
+      <button className="back-button" onClick={onReset}><ArrowLeft size={17} /> New analysis</button>
+      <div style={{ display: 'flex', alignItems: 'center', gap: '16px' }}>
+        <span className="report-label">Field screening report</span>
+        <button className="primary-button" onClick={() => window.print()} style={{ display: 'flex', alignItems: 'center', gap: '8px', padding: '6px 12px', fontSize: '13px' }}><Download size={15} /> Download PDF</button>
+      </div>
+    </div>
     <header className="report-heading" style={{ justifyContent: 'flex-end', marginBottom: '16px' }}><div className="confidence-badge"><Eye size={20} /><span>Usable observations<strong>{quality.valid_observation_pct ?? '—'}%</strong></span></div></header>
     <section className="metric-grid" aria-label="Screening summary">
       <Value label="Higher vigour" value={pct(stats.healthy_pct)} detail="of vegetation pixels" tone="success" />
