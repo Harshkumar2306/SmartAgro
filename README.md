@@ -1,82 +1,76 @@
----
-title: Smart Agro API
-emoji: 🌍
-colorFrom: green
-colorTo: blue
-sdk: docker
-app_port: 7860
----
-
 # 🌍 SmartAgro
 
 **An Autonomous, Multi-Spectral Satellite Intelligence Engine for Precision Agriculture**
 
-![React](https://img.shields.io/badge/React-20232A?style=for-the-badge&logo=react&logoColor=61DAFB) ![FastAPI](https://img.shields.io/badge/FastAPI-005571?style=for-the-badge&logo=fastapi) ![Python](https://img.shields.io/badge/Python-3776AB?style=for-the-badge&logo=python&logoColor=white) ![Vite](https://img.shields.io/badge/Vite-B73BFE?style=for-the-badge&logo=vite&logoColor=FFD62E) ![HuggingFace](https://img.shields.io/badge/Hugging%20Face-FFD21E?style=for-the-badge&logo=huggingface&logoColor=000)
+<div align="center">
 
-SmartAgro bridges the gap between complex aerospace data and actionable farming intelligence. Using **live Sentinel-2 satellite imagery**, unsupervised machine learning, and hyper-local environmental APIs, SmartAgro acts as an "eye in the sky." It instantly analyzes massive tracts of land, detecting microscopic stress before it becomes visible, and autonomously calculating the exact resources needed for recovery.
+![React](https://img.shields.io/badge/React-20232A?style=for-the-badge&logo=react&logoColor=61DAFB) 
+![FastAPI](https://img.shields.io/badge/FastAPI-005571?style=for-the-badge&logo=fastapi) 
+![Python](https://img.shields.io/badge/Python-3776AB?style=for-the-badge&logo=python&logoColor=white) 
+![Vite](https://img.shields.io/badge/Vite-B73BFE?style=for-the-badge&logo=vite&logoColor=FFD62E)
+![scikit-learn](https://img.shields.io/badge/scikit--learn-%23F7931E.svg?style=for-the-badge&logo=scikit-learn&logoColor=white)
+
+[![Deploy with Vercel](https://vercel.com/button)](https://vercel.com/new/clone?repository-url=https%3A%2F%2Fgithub.com%2FHarshkumar2306%2FSmartAgro)
+[![Deploy to Render](https://render.com/images/deploy-to-render-button.svg)](https://render.com/deploy)
+
+</div>
+
+SmartAgro bridges the gap between complex aerospace data and actionable farming intelligence. Using **live Sentinel-2 satellite imagery** and **Dynamic K-Means Machine Learning**, SmartAgro acts as an "eye in the sky." It instantly analyzes massive tracts of land and statistically maps out microscopic crop stress before it becomes visible to the human eye.
 
 ---
 
-## 🌐 Live Environments
+## 🚀 Live Deployments
 
-| Resource | Link |
-| :--- | :--- |
-| **💻 Web Dashboard (Vercel)** | [https://smart-agro-eight.vercel.app](https://smart-agro-eight.vercel.app) |
-| **⚙️ Backend API (Render)** | [https://smartagro-1-ojao.onrender.com](https://smartagro-1-ojao.onrender.com) |
-| **📁 Source Code** | [GitHub Repository](https://github.com/Harshkumar2306/SmartAgro) |
+SmartAgro is built on a decoupled, highly scalable architecture and is actively deployed on premium cloud infrastructure:
+
+- 💻 **Frontend (Vercel):** [https://smart-agro-eight.vercel.app](https://smart-agro-eight.vercel.app)
+- ⚙️ **Backend API (Render):** [https://smartagro-1-ojao.onrender.com](https://smartagro-1-ojao.onrender.com)
 
 ---
 
-## ✨ Key Features
+## ✨ Key Technical Features
 
 ### 🛰️ Live Multi-Spectral Remote Sensing
 Connects directly to the **Microsoft Planetary Computer** to fetch raw aerospace data.
-*   **Intelligent Mosaicking:** Automatically detects if a selected farm crosses the boundary between two satellite capture zones (tiles). It dynamically fetches adjacent tiles taken on the exact same day and seamlessly stitches (`np.maximum`) them together, ensuring zero data loss or black boundaries.
+*   **True Polygon Masking:** Users can draw highly irregular polygons directly on the map. The backend mathematically generates a digital cookie-cutter (`rasterio.features.geometry_mask`) to mask out all satellite pixels outside the exact drawn lines, ensuring that neighboring fields or roads do not pollute the crop statistics.
 
-### 🧠 Ultra-Lightweight Agronomic Processing
-Traditional apps use heavy ML libraries that crash on free-tier servers. SmartAgro processes raw satellite indices (NDVI) using **fixed agronomic threshold mathematics**. 
-*   This extremely memory-efficient approach perfectly categorizes millions of pixels into three distinct zones: **Healthy** (High Vigor), **Moderate** (Struggling), and **Stressed** (Bare soil or drought), all while running comfortably under 512MB of RAM.
+### 🧠 Dynamic K-Means Machine Learning
+Traditional apps use naive, hardcoded NDVI thresholds (e.g., assuming anything above 0.60 is "healthy"). SmartAgro utilizes **scikit-learn** to deploy a K-Means clustering algorithm on the fly.
+*   The system analyzes the specific data distribution of the selected field and statistically groups the pixels into three distinct clusters (High, Medium, and Low vigour).
+*   Thresholds are dynamically calculated based on cluster midpoints, ensuring the analysis is perfectly calibrated to the specific crop type and growth stage on that exact day.
 
-### 🚛 Actionable Resource Optimizer
-Moves beyond generic metrics to provide deep agronomic value.
-*   **Nitrogen Calculation:** Evaluates the exact hectare size of the "Stressed" zones and estimates the Metric Tons of fertilizer (e.g., Urea) required for recovery.
-*   **Water Deficit:** Reads the satellite NDWI (Normalized Difference Water Index). If drought is detected, it calculates the exact volume of water (in cubic meters) required to restore the canopy.
-
-### ⛈️ Predictive Disease Risk Radar
-Moves the platform from *reactive* to *proactive*. 
-*   Cross-references live humidity and temperature (from **Open-Meteo**) with the canopy moisture index. It automatically triggers "Critical Risk" warnings for fungal and pathogen outbreaks when hot, highly humid conditions align.
+### 📊 Pure Decision Support
+SmartAgro acts as a professional, defensible tool for agronomists.
+*   Instead of generating dangerous "prescriptive" recommendations (like guessing fertilizer rates without soil tests), the platform empowers farmers by prioritizing ground-walks in low-vigour zones.
+*   Delivers completely pure statistical distributions alongside stunning true-color and false-color satellite raster maps.
 
 ---
 
 ## 🏗️ System Architecture
 
-SmartAgro operates on a decoupled architecture designed to handle extremely heavy raster matrix math without crashing.
+SmartAgro operates on a decoupled architecture designed to handle heavy raster matrix math and machine learning without dropping frames.
 
 ```mermaid
 graph TB
-    subgraph Client["💻 Frontend (React + Vite)"]
+    subgraph Client["💻 Frontend (React + Vite on Vercel)"]
         UI["Glassmorphic UI"]
-        MAP["Leaflet Map Engine"]
-        UI <-->|"JSON Payloads"| MAP
+        MAP["Leaflet + Turf.js"]
+        UI <-->|"GeoJSON Payloads"| MAP
     end
 
     subgraph Backend["🌩️ Backend API (FastAPI on Render)"]
         API["FastAPI Server"]
-        WORKER["In-Process Memory-Optimized Pipeline"]
+        WORKER["Scikit-Learn ML Pipeline"]
         API -->|"Triggers Async Job"| WORKER
-        WORKER -->|"Returns Base64 Maps & Stats"| API
+        WORKER -->|"Returns Base64 Maps & Dynamic Stats"| API
     end
 
     subgraph Infrastructure["🛰️ Global Data APIs"]
         STAC["Microsoft Planetary Computer (Sentinel-2)"]
-        METEO["Open-Meteo API"]
-        OSM["OpenStreetMap Geocoding"]
     end
 
-    MAP -.->|"BBox Coordinates"| API
-    WORKER -->|"Downloads TIFs"| STAC
-    WORKER -->|"Live Weather"| METEO
-    WORKER -->|"Location Data"| OSM
+    MAP -.->|"BBox & Polygon Geometry"| API
+    WORKER -->|"Downloads Multi-band TIFs"| STAC
 
     style Client fill:#0f172a,stroke:#3b82f6,color:#f8fafc
     style Backend fill:#1e293b,stroke:#10b981,color:#f8fafc
@@ -85,7 +79,7 @@ graph TB
 
 ---
 
-## 🛠️ Local Setup & Testing
+## 🛠️ Local Setup & Development
 
 ### Prerequisites
 *   Node.js (18+)
@@ -104,19 +98,8 @@ cd backend
 python -m venv venv
 source venv/bin/activate  # On Windows: venv\Scripts\activate
 pip install -r requirements.txt
-python server.py
+python -m backend.server
 ```
-*(Note: Ensure you have GDAL installed on your system if running locally. Alternatively, rely on the Hugging Face Docker deployment).*
-
----
-
-## 🧪 Core API Endpoints
-
-| Method | Endpoint | Description |
-| :--- | :--- | :--- |
-| `POST` | `/api/analyze-async` | Submits bounding box coordinates. Spawns an isolated subprocess to download satellite data, run ML clustering, and returns a `job_id`. |
-| `GET` | `/api/status/{job_id}` | Long-polling endpoint that returns the finished JSON payload containing base64 raster maps, resource needs, and disease risks. |
-| `GET` | `/api/weather` | Fetches live hyper-local meteorological data via Open-Meteo. |
 
 ---
 
@@ -124,9 +107,9 @@ python server.py
 
 | Engineering Pillar | Execution Strategy |
 | :--- | :--- |
-| **Distributed Systems Logic** | Optimized heavy raster math and satellite mosaicking to run entirely in-process under a strict 512MB RAM limit on Render, bypassing the need for heavy external ML libraries. |
-| **Geospatial Mastery** | Implemented on-the-fly multi-tile mosaicking to solve the classic "Edge-of-Scene" boundary cutoffs in satellite STAC queries. |
-| **UX & Polish** | Pixel-perfect glassmorphism, fluid micro-animations, and dynamic data visualization (Recharts) built entirely for commercial enterprise feel. |
-| **Cloud-Native Deployment** | Frontend edge-network delivery via Vercel tied directly to a highly-available Render Docker container. |
+| **Geospatial Mastery** | Implemented exact GeoJSON bounding and true polygon masking using Turf.js on the frontend and Rasterio on the backend, solving the "bounding box pollution" problem. |
+| **Machine Learning** | Deployed dynamic 1D K-Means clustering to eliminate hardcoded agronomic thresholds, ensuring statistical accuracy across all crop types. |
+| **UX & Polish** | Pixel-perfect glassmorphism, completely fluid responsive layouts, micro-animations, and dynamic data visualization built entirely for a premium enterprise feel. |
+| **Cloud-Native Deployment** | Frontend edge-network delivery via Vercel tied directly to a highly-available Render Python container. |
 
-<p align="center">Built with ❤️ for a world that needs smarter agriculture.</p>
+<p align="center">Built with ❤️ for a world that needs smarter, data-driven agriculture.</p>
